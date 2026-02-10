@@ -11,14 +11,14 @@
     <div id="issue-items-list">
       {% for f in formset %}
         <div class="issue-item-form" style="border:1px solid #ddd; padding:10px; margin:10px 0;">
-          {{ f.as_p }}
+          {% include "requests/partials/issue_item_form_fields.html" with form=f %}
         </div>
       {% endfor %}
     </div>
 
     <template id="issue-item-empty-form-template">
       <div class="issue-item-form" style="border:1px solid #ddd; padding:10px; margin:10px 0;">
-        {{ formset.empty_form.as_p }}
+        {% include "requests/partials/issue_item_form_fields.html" with form=formset.empty_form %}
       </div>
     </template>
   </div>

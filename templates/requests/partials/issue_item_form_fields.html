@@ -1,0 +1,31 @@
+{{ form.material }}
+<p>
+  {{ form.material_display.label_tag }}
+  {{ form.material_display }}
+  {% if form.material_display.errors %}
+    {{ form.material_display.errors }}
+  {% endif %}
+  {% if form.material.errors %}
+    {{ form.material.errors }}
+  {% endif %}
+</p>
+<p>
+  {{ form.quantity.label_tag }}
+  {{ form.quantity }}
+  {% if form.quantity.errors %}
+    {{ form.quantity.errors }}
+  {% endif %}
+</p>
+<p>
+  {{ form.notes.label_tag }}
+  {{ form.notes }}
+  {% if form.notes.errors %}
+    {{ form.notes.errors }}
+  {% endif %}
+</p>
+{% if form.DELETE %}
+  <p>
+    {{ form.DELETE.label_tag }}
+    {{ form.DELETE }}
+  </p>
+{% endif %}

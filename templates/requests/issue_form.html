@@ -16,6 +16,8 @@
 
     <script>
       (function () {
+        const MATERIAL_SEARCH_URL = "{% url 'requests:material_search' %}";
+
         function getFormsetElements() {
           const container = document.getElementById("issue-items-formset");
           if (!container) return null;
@@ -30,11 +32,85 @@
           return { container, prefix, totalFormsInput, itemsList, emptyTemplate };
         }
 
+        function buildOptionLabel(material) {
+          return `${material.sku} - ${material.name}`;
+        }
+
+        function fetchMaterialOptions(displayField) {
+          const query = displayField.value.trim();
+
+          window.clearTimeout(displayField._searchDebounce);
+          displayField._searchDebounce = window.setTimeout(async function () {
+            const url = new URL(MATERIAL_SEARCH_URL, window.location.origin);
+            url.searchParams.set("q", query);
+
+            const response = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+            if (!response.ok) return;
+
+            const payload = await response.json();
+            const materials = payload.results || [];
+            displayField._materialsByLabel = new Map();
+
+            displayField._dataList.innerHTML = "";
+            materials.forEach(function (material) {
+              const label = material.label || buildOptionLabel(material);
+              displayField._materialsByLabel.set(label, String(material.id));
+
+              const option = document.createElement("option");
+              option.value = label;
+              displayField._dataList.appendChild(option);
+            });
+          }, 180);
+        }
+
+        function setupMaterialAutocomplete(rootNode) {
+          const scope = rootNode || document;
+          scope.querySelectorAll(".material-display-field").forEach(function (displayField) {
+            if (displayField.dataset.autocompleteReady === "true") return;
+
+            const hiddenField = displayField.closest(".issue-item-form")?.querySelector(".material-id-field");
+            if (!hiddenField) return;
+
+            const listId = `${displayField.name.replace(/[^a-zA-Z0-9_-]/g, "-")}-options`;
+            let dataList = document.getElementById(listId);
+            if (!dataList) {
+              dataList = document.createElement("datalist");
+              dataList.id = listId;
+              document.body.appendChild(dataList);
+            }
+
+            displayField.setAttribute("list", listId);
+            displayField._dataList = dataList;
+            displayField._materialsByLabel = new Map();
+            displayField.dataset.autocompleteReady = "true";
+
+            displayField.addEventListener("input", function () {
+              hiddenField.value = "";
+              fetchMaterialOptions(displayField);
+            });
+
+            displayField.addEventListener("change", function () {
+              const selectedId = displayField._materialsByLabel.get(displayField.value);
+              hiddenField.value = selectedId || "";
+              if (hiddenField.value) {
+                ensureOneEmptyItemForm();
+              }
+            });
+
+            if (displayField.value.trim()) {
+              fetchMaterialOptions(displayField);
+            }
+          });
+        }
+
         function createNewItemForm(elements) {
           const nextFormIndex = Number(elements.totalFormsInput.value);
           const templateHtml = elements.emptyTemplate.innerHTML.replaceAll("__prefix__", String(nextFormIndex));
           elements.itemsList.insertAdjacentHTML("beforeend", templateHtml);
           elements.totalFormsInput.value = String(nextFormIndex + 1);
+
+          const insertedForm = elements.itemsList.lastElementChild;
+          setupMaterialAutocomplete(insertedForm);
         }
 
         function hasTrailingEmptyForm(elements) {
@@ -42,7 +118,7 @@
           if (!forms.length) return false;
 
           const lastForm = forms[forms.length - 1];
-          const materialField = lastForm.querySelector(`[name$='-material']`);
+          const materialField = lastForm.querySelector(`.material-id-field`);
 
           return materialField && materialField.value === "";
         }
@@ -56,15 +132,14 @@
           }
         }
 
-        document.addEventListener("change", function (event) {
-          if (event.target.matches("#issue-items-list [name$='-material']")) {
-            ensureOneEmptyItemForm();
-          }
+        document.addEventListener("DOMContentLoaded", function () {
+          setupMaterialAutocomplete(document);
+          ensureOneEmptyItemForm();
         });
 
-        document.addEventListener("DOMContentLoaded", ensureOneEmptyItemForm);
         document.body.addEventListener("htmx:afterSwap", function (event) {
           if (event.target.id === "issue-form-inner") {
+            setupMaterialAutocomplete(event.target);
             ensureOneEmptyItemForm();
           }
         });

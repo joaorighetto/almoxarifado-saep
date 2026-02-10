@@ -3,8 +3,12 @@ from pathlib import Path
 
 from django.conf import settings
 from django.http import HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.db.models import Q
+
+from apps.inventory.models import Material
 
 from .forms import IssueItemFormSet, IssueRequestForm
 from .models import IssueRequest
@@ -89,3 +93,22 @@ def issue_export_csv(request, pk: int):
         )
 
     return response
+
+
+def material_search(request):
+    query = request.GET.get("q", "").strip()
+    materials = Material.objects.all().order_by("sku")
+
+    if query:
+        materials = materials.filter(Q(name__icontains=query) | Q(sku__icontains=query))
+
+    results = [
+        {
+            "id": material.id,
+            "sku": material.sku,
+            "name": material.name,
+            "label": f"{material.sku} - {material.name}",
+        }
+        for material in materials[:20]
+    ]
+    return JsonResponse({"results": results})
