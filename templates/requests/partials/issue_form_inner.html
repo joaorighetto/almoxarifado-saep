@@ -6,12 +6,22 @@
 
 <fieldset>
   <legend>Itens</legend>
-  {{ formset.management_form }}
-  {% for f in formset %}
-    <div style="border:1px solid #ddd; padding:10px; margin:10px 0;">
-      {{ f.as_p }}
+  <div id="issue-items-formset" data-formset-prefix="{{ formset.prefix }}">
+    {{ formset.management_form }}
+    <div id="issue-items-list">
+      {% for f in formset %}
+        <div class="issue-item-form" style="border:1px solid #ddd; padding:10px; margin:10px 0;">
+          {{ f.as_p }}
+        </div>
+      {% endfor %}
     </div>
-  {% endfor %}
+
+    <template id="issue-item-empty-form-template">
+      <div class="issue-item-form" style="border:1px solid #ddd; padding:10px; margin:10px 0;">
+        {{ formset.empty_form.as_p }}
+      </div>
+    </template>
+  </div>
 </fieldset>
 
 <button type="submit">Salvar</button>
