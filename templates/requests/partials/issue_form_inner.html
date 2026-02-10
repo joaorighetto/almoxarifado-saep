@@ -1,0 +1,17 @@
+{% csrf_token %}
+<fieldset>
+  <legend>Dados da retirada</legend>
+  {{ form.as_p }}
+</fieldset>
+
+<fieldset>
+  <legend>Itens</legend>
+  {{ formset.management_form }}
+  {% for f in formset %}
+    <div style="border:1px solid #ddd; padding:10px; margin:10px 0;">
+      {{ f.as_p }}
+    </div>
+  {% endfor %}
+</fieldset>
+
+<button type="submit">Salvar</button>

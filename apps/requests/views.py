@@ -1,14 +1,14 @@
 import csv
+from pathlib import Path
+
+from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.conf import settings
-from pathlib import Path
 
-from .forms import IssueRequestForm, IssueItemFormSet
+from .forms import IssueItemFormSet, IssueRequestForm
 from .models import IssueRequest
 from .services import append_issue_to_xlsx
-
 
 
 def issue_create(request):
@@ -24,7 +24,18 @@ def issue_create(request):
             xlsx_file = Path(settings.EXPORT_DIR) / settings.ISSUE_EXPORT_FILENAME
             append_issue_to_xlsx(issue, items, xlsx_file)
 
+            if request.headers.get("HX-Request") == "true":
+                return render(request, "requests/partials/issue_created.html", {"issue": issue})
+
             return redirect(reverse("requests:issue_detail", args=[issue.id]))
+
+        if request.headers.get("HX-Request") == "true":
+            return render(
+                request,
+                "requests/partials/issue_form_inner.html",
+                {"form": form, "formset": formset},
+                status=400,
+            )
     else:
         form = IssueRequestForm()
         formset = IssueItemFormSet()
@@ -45,21 +56,36 @@ def issue_export_csv(request, pk: int):
     response["Content-Disposition"] = f'attachment; filename="saida_{issue.id}.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(["ISSUE_ID", "ISSUED_AT", "REQUESTED_BY", "DESTINATION", "DOCUMENT_REF", "SKU", "NAME", "UNIT", "QTY", "ITEM_NOTES"])
+    writer.writerow(
+        [
+            "ISSUE_ID",
+            "ISSUED_AT",
+            "REQUESTED_BY",
+            "DESTINATION",
+            "DOCUMENT_REF",
+            "SKU",
+            "NAME",
+            "UNIT",
+            "QTY",
+            "ITEM_NOTES",
+        ]
+    )
 
     for item in issue.items.all():
         m = item.material
-        writer.writerow([
-            issue.id,
-            issue.issued_at.isoformat(sep=" ", timespec="minutes"),
-            issue.requested_by_name,
-            issue.destination,
-            issue.document_ref,
-            m.sku,
-            m.name,
-            m.unit,
-            str(item.quantity),
-            item.notes,
-        ])
+        writer.writerow(
+            [
+                issue.id,
+                issue.issued_at.isoformat(sep=" ", timespec="minutes"),
+                issue.requested_by_name,
+                issue.destination,
+                issue.document_ref,
+                m.sku,
+                m.name,
+                m.unit,
+                str(item.quantity),
+                item.notes,
+            ]
+        )
 
     return response
