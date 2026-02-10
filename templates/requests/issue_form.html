@@ -1,28 +1,17 @@
 <!doctype html>
 <html>
-  <head><meta charset="utf-8"><title>Nova Saída</title></head>
+  <head>
+    <meta charset="utf-8">
+    <title>Nova Saída</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  </head>
   <body>
     <h1>Registrar Saída de Materiais</h1>
 
-    <form method="post">
-      {% csrf_token %}
-
-      <fieldset>
-        <legend>Dados da retirada</legend>
-        {{ form.as_p }}
-      </fieldset>
-
-      <fieldset>
-        <legend>Itens</legend>
-        {{ formset.management_form }}
-        {% for f in formset %}
-          <div style="border:1px solid #ddd; padding:10px; margin:10px 0;">
-            {{ f.as_p }}
-          </div>
-        {% endfor %}
-      </fieldset>
-
-      <button type="submit">Salvar</button>
+    <form method="post" hx-post="{% url 'requests:issue_create' %}" hx-target="#issue-form-inner" hx-swap="innerHTML">
+      <div id="issue-form-inner">
+        {% include "requests/partials/issue_form_inner.html" %}
+      </div>
     </form>
   </body>
 </html>

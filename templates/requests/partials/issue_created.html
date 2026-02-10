@@ -1,0 +1,8 @@
+<div style="padding:12px; border:1px solid #b7eb8f; background:#f6ffed; margin-top:16px;">
+  <strong>Saída {{ issue.id }} registrada com sucesso.</strong>
+  <div>
+    <a href="{% url 'requests:issue_detail' issue.id %}">Ver detalhes</a>
+    |
+    <a href="{% url 'requests:issue_create' %}">Registrar nova saída</a>
+  </div>
+</div>
