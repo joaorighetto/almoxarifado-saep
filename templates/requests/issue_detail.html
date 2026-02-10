@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Saída {{ issue.id }}</title></head>
+  <body>
+    <h1>Saída {{ issue.id }}</h1>
+
+    <p><b>Data/hora:</b> {{ issue.issued_at }}</p>
+    <p><b>Solicitante/retirante:</b> {{ issue.requested_by_name }}</p>
+    <p><b>Destino:</b> {{ issue.destination }}</p>
+    <p><b>Documento ref.:</b> {{ issue.document_ref }}</p>
+    <p><b>Obs:</b> {{ issue.notes }}</p>
+
+    <h2>Itens</h2>
+    <table border="1" cellpadding="6" cellspacing="0">
+      <tr>
+        <th>SKU</th><th>Material</th><th>Un</th><th>Qtd</th><th>Obs</th>
+      </tr>
+      {% for item in issue.items.all %}
+      <tr>
+        <td>{{ item.material.sku }}</td>
+        <td>{{ item.material.name }}</td>
+        <td>{{ item.material.unit }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>{{ item.notes }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    <p>
+      <a href="{% url 'requests:issue_export_csv' issue.id %}">Exportar CSV</a> |
+      <a href="{% url 'requests:issue_create' %}">Nova saída</a>
+    </p>
+
+    <p><b>Arquivo mestre (XLSX):</b> {{ xlsx_path }}</p>
+
+  </body>
+</html>

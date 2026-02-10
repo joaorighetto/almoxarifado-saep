@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     "apps.suppliers",
     "apps.inventory",
     "apps.movements",
+    "apps.requests.apps.RequestsConfig",
+
 ]
 
 MIDDLEWARE = [
@@ -67,7 +69,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -159,3 +161,9 @@ LOGGING = {
     },
     "root": {"handlers": ["console", "file"], "level": "INFO"},
 }
+
+
+EXPORT_DIR = BASE_DIR / "var" / "exports"
+EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+ISSUE_EXPORT_FILENAME = "controle_saidas.xlsx"
