@@ -13,5 +13,62 @@
         {% include "requests/partials/issue_form_inner.html" %}
       </div>
     </form>
+
+    <script>
+      (function () {
+        function getFormsetElements() {
+          const container = document.getElementById("issue-items-formset");
+          if (!container) return null;
+
+          const prefix = container.dataset.formsetPrefix || "items";
+          const totalFormsInput = container.querySelector(`#id_${prefix}-TOTAL_FORMS`);
+          const itemsList = container.querySelector("#issue-items-list");
+          const emptyTemplate = container.querySelector("#issue-item-empty-form-template");
+
+          if (!totalFormsInput || !itemsList || !emptyTemplate) return null;
+
+          return { container, prefix, totalFormsInput, itemsList, emptyTemplate };
+        }
+
+        function createNewItemForm(elements) {
+          const nextFormIndex = Number(elements.totalFormsInput.value);
+          const templateHtml = elements.emptyTemplate.innerHTML.replaceAll("__prefix__", String(nextFormIndex));
+          elements.itemsList.insertAdjacentHTML("beforeend", templateHtml);
+          elements.totalFormsInput.value = String(nextFormIndex + 1);
+        }
+
+        function hasTrailingEmptyForm(elements) {
+          const forms = elements.itemsList.querySelectorAll(".issue-item-form");
+          if (!forms.length) return false;
+
+          const lastForm = forms[forms.length - 1];
+          const materialField = lastForm.querySelector(`[name$='-material']`);
+
+          return materialField && materialField.value === "";
+        }
+
+        function ensureOneEmptyItemForm() {
+          const elements = getFormsetElements();
+          if (!elements) return;
+
+          if (!hasTrailingEmptyForm(elements)) {
+            createNewItemForm(elements);
+          }
+        }
+
+        document.addEventListener("change", function (event) {
+          if (event.target.matches("#issue-items-list [name$='-material']")) {
+            ensureOneEmptyItemForm();
+          }
+        });
+
+        document.addEventListener("DOMContentLoaded", ensureOneEmptyItemForm);
+        document.body.addEventListener("htmx:afterSwap", function (event) {
+          if (event.target.id === "issue-form-inner") {
+            ensureOneEmptyItemForm();
+          }
+        });
+      })();
+    </script>
   </body>
 </html>

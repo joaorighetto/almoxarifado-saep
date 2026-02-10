@@ -22,6 +22,6 @@ IssueItemFormSet = inlineformset_factory(
     IssueRequest,
     IssueItem,
     form=IssueItemForm,
-    extra=5,
+    extra=1,
     can_delete=True,
 )
