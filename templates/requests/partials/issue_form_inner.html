@@ -1,27 +1,59 @@
 {% csrf_token %}
-<fieldset>
+<div id="client-validation-alert" class="form-alert" role="alert" hidden></div>
+{% if form.non_field_errors or form.errors or formset.non_form_errors %}
+  <div class="form-alert" role="alert">
+    <strong>Não foi possível salvar.</strong>
+    <span>Revise os campos obrigatórios destacados e tente novamente.</span>
+    {% for error in formset.non_form_errors %}
+      <span>{{ error }}</span>
+    {% endfor %}
+  </div>
+{% endif %}
+<fieldset class="issue-section">
   <legend>Dados da retirada</legend>
-  {{ form.as_p }}
+  <div class="issue-grid issue-grid-main">
+    <div class="form-field">
+      <label for="{{ form.requested_by_name.id_for_label }}">
+        {{ form.requested_by_name.label }}<span class="required-marker">*</span>
+      </label>
+      {{ form.requested_by_name }}
+      {{ form.requested_by_name.errors }}
+    </div>
+    <div class="form-field">
+      <label for="{{ form.destination.id_for_label }}">
+        {{ form.destination.label }}<span class="required-marker">*</span>
+      </label>
+      {{ form.destination }}
+      {{ form.destination.errors }}
+    </div>
+    <div class="form-field form-field-full">
+      {{ form.notes.label_tag }}
+      {{ form.notes }}
+      {{ form.notes.errors }}
+    </div>
+  </div>
 </fieldset>
 
-<fieldset>
+<fieldset class="issue-section">
   <legend>Itens</legend>
   <div id="issue-items-formset" data-formset-prefix="{{ formset.prefix }}">
     {{ formset.management_form }}
-    <div id="issue-items-list">
+    <div id="issue-items-list" class="issue-items-list">
       {% for f in formset %}
-        <div class="issue-item-form" style="border:1px solid #ddd; padding:10px; margin:10px 0;">
-          {% include "requests/partials/issue_item_form_fields.html" with form=f %}
+        <div class="issue-item-form">
+          {% include "requests/partials/issue_item_form_fields.html" with form=f show_required_marker=forloop.first %}
         </div>
       {% endfor %}
     </div>
 
     <template id="issue-item-empty-form-template">
-      <div class="issue-item-form" style="border:1px solid #ddd; padding:10px; margin:10px 0;">
-        {% include "requests/partials/issue_item_form_fields.html" with form=formset.empty_form %}
+      <div class="issue-item-form">
+        {% include "requests/partials/issue_item_form_fields.html" with form=formset.empty_form show_required_marker=False %}
       </div>
     </template>
   </div>
 </fieldset>
 
-<button type="submit">Salvar</button>
+<div class="issue-actions">
+  <button class="btn-primary" type="submit">Salvar saída</button>
+</div>

@@ -10,6 +10,7 @@ __pycache__/
 # Env vars
 .env
 .env.*
+gdrive-key.json
 
 # Django
 *.log

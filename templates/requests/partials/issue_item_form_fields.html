@@ -1,31 +1,43 @@
 {{ form.material }}
-<p>
-  {{ form.material_display.label_tag }}
-  {{ form.material_display }}
-  {% if form.material_display.errors %}
-    {{ form.material_display.errors }}
-  {% endif %}
-  {% if form.material.errors %}
-    {{ form.material.errors }}
-  {% endif %}
-</p>
-<p>
-  {{ form.quantity.label_tag }}
-  {{ form.quantity }}
-  {% if form.quantity.errors %}
-    {{ form.quantity.errors }}
-  {% endif %}
-</p>
-<p>
-  {{ form.notes.label_tag }}
-  {{ form.notes }}
-  {% if form.notes.errors %}
-    {{ form.notes.errors }}
-  {% endif %}
-</p>
-{% if form.DELETE %}
-  <p>
-    {{ form.DELETE.label_tag }}
-    {{ form.DELETE }}
-  </p>
-{% endif %}
+<div class="issue-grid issue-grid-item">
+  <div class="form-field form-field-full">
+    <label for="{{ form.material_display.id_for_label }}">
+      {{ form.material_display.label }}
+      {% if show_required_marker %}<span class="required-marker">*</span>{% endif %}
+    </label>
+    {{ form.material_display }}
+    {% if form.material_display.errors %}
+      {{ form.material_display.errors }}
+    {% endif %}
+    {% if form.material.errors %}
+      {{ form.material.errors }}
+    {% endif %}
+  </div>
+  <div class="form-field">
+    <label for="{{ form.quantity.id_for_label }}">
+      {{ form.quantity.label }}
+      {% if show_required_marker %}<span class="required-marker">*</span>{% endif %}
+    </label>
+    <div class="quantity-with-unit">
+      {{ form.quantity }}
+      <span
+        class="material-unit-badge{% if not form.instance.material_id %} is-empty{% endif %}"
+        {% if form.instance.material_id %}
+          data-unit="{{ form.instance.material.unit }}"
+        {% endif %}
+      >
+        {% if form.instance.material_id %}{{ form.instance.material.unit }}{% endif %}
+      </span>
+    </div>
+    {% if form.quantity.errors %}
+      {{ form.quantity.errors }}
+    {% endif %}
+  </div>
+  <div class="form-field">
+    {{ form.notes.label_tag }}
+    {{ form.notes }}
+    {% if form.notes.errors %}
+      {{ form.notes.errors }}
+    {% endif %}
+  </div>
+</div>

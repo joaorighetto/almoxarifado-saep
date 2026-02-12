@@ -1,8 +1,12 @@
+"""Modelos base compartilhados entre os apps de domínio."""
+
 from django.conf import settings
 from django.db import models
 
 
 class TimeStampedModel(models.Model):
+    """Mixin abstrato de timestamps de criação/atualização."""
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -11,6 +15,8 @@ class TimeStampedModel(models.Model):
 
 
 class AuditedModel(TimeStampedModel):
+    """Mixin abstrato com usuário criador e último atualizador."""
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,

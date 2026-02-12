@@ -1,3 +1,5 @@
+"""Modelos de inventário: materiais, lotes, localizações e saldos."""
+
 from django.db import models
 
 from apps.core.models import AuditedModel
@@ -5,6 +7,8 @@ from apps.suppliers.models import Supplier
 
 
 class Location(AuditedModel):
+    """Endereço físico de armazenagem dentro do almoxarifado."""
+
     code = models.CharField(max_length=50, unique=True)  # ex: A-01-02
     description = models.CharField(max_length=200, blank=True, default="")
 
@@ -13,9 +17,12 @@ class Location(AuditedModel):
 
 
 class Material(AuditedModel):
+    """Cadastro mestre de material consumido/estocado."""
+
     sku = models.CharField(max_length=60, unique=True)  # código interno/SCPI, etc.
     name = models.CharField(max_length=255)
     unit = models.CharField(max_length=10)  # un, m, kg, l etc.
+    description = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
 
     notes = models.TextField(blank=True, default="")
@@ -25,6 +32,8 @@ class Material(AuditedModel):
 
 
 class StockLot(AuditedModel):
+    """Lote de entrada de material para rastreabilidade de origem."""
+
     material = models.ForeignKey(Material, on_delete=models.PROTECT)
     supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL)
     location = models.ForeignKey(Location, null=True, blank=True, on_delete=models.SET_NULL)
@@ -37,6 +46,8 @@ class StockLot(AuditedModel):
 
 
 class StockBalance(AuditedModel):
+    """Saldo consolidado atual por material."""
+
     material = models.OneToOneField(Material, on_delete=models.PROTECT)
     quantity = models.DecimalField(max_digits=14, decimal_places=3, default=0)
 

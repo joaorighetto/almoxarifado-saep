@@ -1,37 +1,71 @@
-<!doctype html>
-<html>
-  <head><meta charset="utf-8"><title>Saída {{ issue.id }}</title></head>
-  <body>
-    <h1>Saída {{ issue.id }}</h1>
+{% extends "requests/base.html" %}
 
-    <p><b>Data/hora:</b> {{ issue.issued_at }}</p>
-    <p><b>Solicitante/retirante:</b> {{ issue.requested_by_name }}</p>
-    <p><b>Destino:</b> {{ issue.destination }}</p>
-    <p><b>Documento ref.:</b> {{ issue.document_ref }}</p>
-    <p><b>Obs:</b> {{ issue.notes }}</p>
+{% block title %}Saída {{ issue.id }}{% endblock %}
 
-    <h2>Itens</h2>
-    <table border="1" cellpadding="6" cellspacing="0">
-      <tr>
-        <th>SKU</th><th>Material</th><th>Un</th><th>Qtd</th><th>Obs</th>
-      </tr>
-      {% for item in issue.items.all %}
-      <tr>
-        <td>{{ item.material.sku }}</td>
-        <td>{{ item.material.name }}</td>
-        <td>{{ item.material.unit }}</td>
-        <td>{{ item.quantity }}</td>
-        <td>{{ item.notes }}</td>
-      </tr>
-      {% endfor %}
-    </table>
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Saída #{{ issue.id }}</h1>
+      <p class="page-subtitle">Detalhes da retirada registrada e lista de itens.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:issue_create' %}">Nova saída</a>
+      <a class="btn-primary" href="{% url 'requests:issue_export_csv' issue.id %}">Exportar CSV</a>
+    </div>
+  </header>
 
-    <p>
-      <a href="{% url 'requests:issue_export_csv' issue.id %}">Exportar CSV</a> |
-      <a href="{% url 'requests:issue_create' %}">Nova saída</a>
+  <section class="card">
+    <div class="detail-grid">
+      <article class="meta-card">
+        <p class="meta-label">Data e hora</p>
+        <p class="meta-value">{{ issue.issued_at|date:"d/m/Y H:i" }}</p>
+      </article>
+      <article class="meta-card">
+        <p class="meta-label">Solicitante</p>
+        <p class="meta-value">{{ issue.requested_by_name }}</p>
+      </article>
+      <article class="meta-card">
+        <p class="meta-label">Destino</p>
+        <p class="meta-value">{{ issue.destination|default:"-" }}</p>
+      </article>
+      <article class="meta-card">
+        <p class="meta-label">Observações</p>
+        <p class="meta-value">{{ issue.notes|default:"-" }}</p>
+      </article>
+    </div>
+
+    <h2 class="section-title">Itens</h2>
+    <div class="table-wrap">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Material</th>
+            <th>Unidade</th>
+            <th>Quantidade</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in issue.items.all %}
+            <tr>
+              <td>{{ item.material.sku }}</td>
+              <td>{{ item.material.name }}</td>
+              <td>{{ item.material.unit }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>{{ item.notes|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="muted-text">Nenhum item registrado nesta saída.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <p class="muted-text mt-sm">
+      Arquivo mestre XLSX: <code>{{ xlsx_path }}</code>
     </p>
-
-    <p><b>Arquivo mestre (XLSX):</b> {{ xlsx_path }}</p>
-
-  </body>
-</html>
+  </section>
+{% endblock %}

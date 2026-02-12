@@ -1,3 +1,5 @@
+"""Modelos de movimentação de estoque (entrada/saída/ajuste)."""
+
 from django.db import models
 
 from apps.core.models import AuditedModel
@@ -5,7 +7,11 @@ from apps.inventory.models import Material, StockLot
 
 
 class Movement(AuditedModel):
+    """Evento de movimentação que altera estoque de um material."""
+
     class Type(models.TextChoices):
+        """Tipos de movimentação suportados pelo domínio."""
+
         IN = "IN", "Entrada"
         OUT = "OUT", "Saída"
         ADJ = "ADJ", "Ajuste"

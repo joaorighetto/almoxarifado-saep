@@ -11,11 +11,9 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
-import environ
-
-
 from pathlib import Path
 
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -36,7 +34,7 @@ DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 
 
-# Application definition
+# Application definition (apps instalados e middleware HTTP)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -52,7 +50,6 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.movements",
     "apps.requests.apps.RequestsConfig",
-
 ]
 
 MIDDLEWARE = [
@@ -85,7 +82,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-# Database
+# Database (fonte via DATABASE_URL, fallback para SQLite local)
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
@@ -112,7 +109,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
+# Internationalization e timezone padrão do projeto
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
 LANGUAGE_CODE = "en-us"
@@ -124,12 +121,13 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
+# Static/media files
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "media/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 
@@ -168,3 +166,19 @@ EXPORT_DIR = BASE_DIR / "var" / "exports"
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
 ISSUE_EXPORT_FILENAME = "controle_saidas.xlsx"
+
+# Google Drive sync (Service Account) para planilha mestre de saídas
+GDRIVE_SYNC_ENABLED = env.bool("GDRIVE_SYNC_ENABLED", default=True)
+GDRIVE_SERVICE_ACCOUNT_FILE = env(
+    "GDRIVE_SERVICE_ACCOUNT_FILE",
+    default=str(BASE_DIR / "gdrive-key.json"),
+)
+GDRIVE_FOLDER_ID = env(
+    "GDRIVE_FOLDER_ID",
+    default="1PVUntDL9g92PLyh-PyjCALeXkiZac9LI",
+)
+GDRIVE_TARGET_FILENAME = env("GDRIVE_TARGET_FILENAME", default=ISSUE_EXPORT_FILENAME)
+GDRIVE_FILE_ID_CACHE = env(
+    "GDRIVE_FILE_ID_CACHE",
+    default=str(EXPORT_DIR / ".gdrive_file_id"),
+)

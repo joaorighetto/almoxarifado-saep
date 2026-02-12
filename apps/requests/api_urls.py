@@ -1,3 +1,5 @@
+"""Rotas REST para operações de saída de materiais."""
+
 from rest_framework.routers import DefaultRouter
 
 from .api import IssueRequestViewSet
