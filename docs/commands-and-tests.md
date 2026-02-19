@@ -2,7 +2,7 @@
 
 Este documento centraliza os comandos de desenvolvimento, qualidade, importação e verificação já existentes no projeto.
 
-## Pré-requisitos
+# Pré-requisitos
 
 - Python 3.12
 - Ambiente virtual em `.venv`
@@ -13,7 +13,7 @@ source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 ```
 
-## Setup rápido
+# Setup rápido
 
 ```bash
 source .venv/bin/activate
@@ -21,28 +21,28 @@ make bootstrap
 make run
 ```
 
-## Qualidade de código
+# Qualidade de código
 
-### Ruff
+## Ruff
 
 ```bash
 ruff check .
 ruff check . --fix
 ```
 
-### Black
+## Black
 
 ```bash
 black .
 ```
 
-### Check do Django
+## Check do Django
 
 ```bash
 python manage.py check
 ```
 
-## Testes
+# Testes
 
 ## Rodar todos
 
@@ -54,7 +54,7 @@ pytest
 
 ```bash
 pytest -q apps/requests/tests.py
-pytest -q apps/inventory/tests
+pytest -q apps/inventory/tests.py
 ```
 
 ## Rodar subconjunto (busca de materiais)
@@ -63,7 +63,7 @@ pytest -q apps/inventory/tests
 pytest -q apps/requests/tests.py -k material_search
 ```
 
-## Comandos de gestão (management commands)
+# Comandos de gestão (management commands)
 
 ## Importar materiais e estoque via CSV
 
