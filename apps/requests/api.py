@@ -8,6 +8,7 @@ from rest_framework import serializers, viewsets
 
 from .models import IssueItem, IssueRequest
 from .services import append_issue_to_xlsx
+from .stock import StockValidationError, consume_stock_for_issue
 
 
 class IssueItemSerializer(serializers.ModelSerializer):
@@ -71,6 +72,11 @@ class IssueRequestSerializer(serializers.ModelSerializer):
         IssueItem.objects.bulk_create(
             [IssueItem(issue=issue, **item_data) for item_data in items_data]
         )
+        items = list(issue.items.select_related("material").all())
+        try:
+            consume_stock_for_issue(issue, items)
+        except StockValidationError as exc:
+            raise serializers.ValidationError({"items": exc.messages}) from exc
         return issue
 
 

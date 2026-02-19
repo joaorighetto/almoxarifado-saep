@@ -187,6 +187,10 @@ ul.errorlist {
   align-items: end;
 }
 
+.issue-grid-item.issue-grid-item-has-quantity-error {
+  align-items: start;
+}
+
 .form-field {
   min-width: 0;
 }

@@ -1,5 +1,6 @@
 import unicodedata
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 from django.core.management import call_command
@@ -8,7 +9,8 @@ from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 from rest_framework.test import APIClient
 
-from apps.inventory.models import Material
+from apps.inventory.models import Material, StockBalance
+from apps.movements.models import Movement
 from apps.requests.models import IssueItem, IssueRequest
 from apps.requests.services import HEADERS
 
@@ -20,8 +22,11 @@ def _normalize_text(value: str) -> str:
     return "".join(ch for ch in normalized if not unicodedata.combining(ch)).lower()
 
 
-def test_create_issue_request_via_api():
+def test_create_issue_request_via_api(tmp_path, settings):
+    settings.EXPORT_DIR = tmp_path
+    settings.GDRIVE_SYNC_ENABLED = False
     material = Material.objects.create(sku="M-001", name="Areia", unit="m3")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
 
     payload = {
@@ -45,6 +50,102 @@ def test_create_issue_request_via_api():
     issue = IssueRequest.objects.get(pk=response.data["id"])
     assert issue.items.count() == 1
     assert issue.items.first().material_id == material.id
+    assert StockBalance.objects.get(material=material).quantity == Decimal("6.500")
+    movement = Movement.objects.get(material=material)
+    assert movement.movement_type == Movement.Type.OUT
+    assert movement.quantity == Decimal("3.500")
+
+
+def test_create_issue_request_via_api_rejects_when_stock_is_insufficient(tmp_path, settings):
+    settings.EXPORT_DIR = tmp_path
+    settings.GDRIVE_SYNC_ENABLED = False
+    material = Material.objects.create(sku="M-002", name="Brita", unit="m3")
+    StockBalance.objects.create(material=material, quantity="1.000")
+    client = APIClient()
+
+    payload = {
+        "requested_by_name": "João",
+        "destination": "Obra B",
+        "document_ref": "REQ-02",
+        "issued_at": (timezone.now() + timedelta(minutes=1)).isoformat(),
+        "items": [
+            {
+                "material": material.id,
+                "quantity": "3.000",
+                "notes": "",
+            }
+        ],
+    }
+
+    response = client.post("/api/saidas/", payload, format="json")
+
+    assert response.status_code == 400
+    assert IssueRequest.objects.count() == 0
+    assert StockBalance.objects.get(material=material).quantity == Decimal("1.000")
+    assert Movement.objects.count() == 0
+
+
+def test_issue_create_via_htmx_shows_stock_error_feedback(client, settings):
+    settings.GDRIVE_SYNC_ENABLED = False
+    material = Material.objects.create(sku="M-HTMX-001", name="Areia Fina", unit="m3")
+    StockBalance.objects.create(material=material, quantity="1.000")
+
+    payload = {
+        "requested_by_name": "João",
+        "destination": "Obra C",
+        "notes": "",
+        "items-TOTAL_FORMS": "1",
+        "items-INITIAL_FORMS": "0",
+        "items-MIN_NUM_FORMS": "0",
+        "items-MAX_NUM_FORMS": "1000",
+        "items-0-material": str(material.id),
+        "items-0-material_display": f"{material.sku} - {material.name}",
+        "items-0-quantity": "3.000",
+        "items-0-notes": "",
+    }
+
+    response = client.post(
+        reverse("requests:issue_create"),
+        payload,
+        HTTP_HX_REQUEST="true",
+    )
+
+    assert response.status_code == 422
+    content = response.content.decode("utf-8")
+    assert "A saída ultrapassa o saldo disponível" in content
+    assert "Saldo disponível: 1.000 m3. Solicitado: 3.000 m3." in content
+    assert 'id="stock-validation-flag"' in content
+    assert IssueRequest.objects.count() == 0
+    assert StockBalance.objects.get(material=material).quantity == Decimal("1.000")
+    assert Movement.objects.count() == 0
+
+
+def test_issue_create_via_htmx_returns_form_partial_on_validation_error(client):
+    payload = {
+        "requested_by_name": "",
+        "destination": "",
+        "notes": "",
+        "items-TOTAL_FORMS": "1",
+        "items-INITIAL_FORMS": "0",
+        "items-MIN_NUM_FORMS": "0",
+        "items-MAX_NUM_FORMS": "1000",
+        "items-0-material": "",
+        "items-0-material_display": "",
+        "items-0-quantity": "",
+        "items-0-notes": "",
+    }
+
+    response = client.post(
+        reverse("requests:issue_create"),
+        payload,
+        HTTP_HX_REQUEST="true",
+    )
+
+    assert response.status_code == 422
+    content = response.content.decode("utf-8")
+    assert "Não foi possível salvar." in content
+    assert "Solicitante" in content
+    assert "Destino" in content
 
 
 def test_material_search_filters_by_sku_and_name(client):

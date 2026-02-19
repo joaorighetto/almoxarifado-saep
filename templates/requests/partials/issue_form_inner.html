@@ -1,9 +1,14 @@
 {% csrf_token %}
 <div id="client-validation-alert" class="form-alert" role="alert" hidden></div>
 {% if form.non_field_errors or form.errors or formset.non_form_errors %}
+  {% if stock_error %}<div id="stock-validation-flag" hidden></div>{% endif %}
   <div class="form-alert" role="alert">
     <strong>Não foi possível salvar.</strong>
-    <span>Revise os campos obrigatórios destacados e tente novamente.</span>
+    {% if stock_error %}
+      <span>A saída ultrapassa o saldo disponível para um ou mais materiais.</span>
+    {% else %}
+      <span>Revise os campos obrigatórios destacados e tente novamente.</span>
+    {% endif %}
     {% for error in formset.non_form_errors %}
       <span>{{ error }}</span>
     {% endfor %}

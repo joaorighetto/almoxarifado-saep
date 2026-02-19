@@ -1,5 +1,5 @@
 {{ form.material }}
-<div class="issue-grid issue-grid-item">
+<div class="issue-grid issue-grid-item{% if form.quantity.errors %} issue-grid-item-has-quantity-error{% endif %}">
   <div class="form-field form-field-full">
     <label for="{{ form.material_display.id_for_label }}">
       {{ form.material_display.label }}

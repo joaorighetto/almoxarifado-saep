@@ -462,6 +462,14 @@
   function initIssueForm() {
     const materialSearchUrl = getMaterialSearchUrl();
     const form = getIssueFormElement();
+    function getHtmxSwapTarget(event) {
+      return event.detail?.target || event.target || null;
+    }
+
+    function isIssueFormInnerTarget(event) {
+      const target = getHtmxSwapTarget(event);
+      return Boolean(target && target.id === "issue-form-inner");
+    }
 
     if (form && form.dataset.validationHooked !== "true") {
       form.dataset.validationHooked = "true";
@@ -488,21 +496,35 @@
     });
 
     document.body.addEventListener("htmx:afterSwap", function (event) {
-      if (event.target.id === "issue-form-inner") {
-        clearFieldInvalidState(event.target);
+      if (isIssueFormInnerTarget(event)) {
+        const target = getHtmxSwapTarget(event);
+        clearFieldInvalidState(target);
         setClientValidationAlert("");
-        setupMaterialAutocomplete(event.target, materialSearchUrl);
+        setupMaterialAutocomplete(target, materialSearchUrl);
         ensureOneEmptyItemForm(materialSearchUrl);
         const formTarget = getIssueFormElement();
         if (formTarget) formTarget.classList.remove("is-submitting");
-        if (event.target.querySelector(".success-box")) {
+        if (target.querySelector(".success-box")) {
           setRequestStatus("Saída registrada com sucesso.", false);
-        } else if (event.target.querySelector(".errorlist")) {
+        } else if (target.querySelector("#stock-validation-flag")) {
+          setRequestStatus("Estoque insuficiente para concluir a saída.", false);
+        } else if (target.querySelector(".errorlist")) {
           setRequestStatus("Não foi possível salvar. Revise os campos destacados.", false);
         } else {
           setRequestStatus("", false);
         }
       }
+    });
+
+    document.body.addEventListener("htmx:beforeSwap", function (event) {
+      const target = getHtmxSwapTarget(event);
+      if (!target || target.id !== "issue-form-inner") return;
+
+      const statusCode = Number(event.detail?.xhr?.status || 0);
+      if (![400, 409, 422].includes(statusCode)) return;
+
+      event.detail.shouldSwap = true;
+      event.detail.isError = false;
     });
 
     document.body.addEventListener("htmx:beforeRequest", function (event) {
@@ -520,7 +542,6 @@
         setRequestStatus("Não foi possível salvar. Revise os campos destacados.", false);
         return;
       }
-      setRequestStatus("Processando resposta...", true);
     });
 
     document.body.addEventListener("htmx:responseError", function (event) {
