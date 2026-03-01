@@ -12,6 +12,7 @@
     {% if form.material.errors %}
       {{ form.material.errors }}
     {% endif %}
+    <span class="material-stock-hint" hidden></span>
   </div>
   <div class="form-field">
     <label for="{{ form.quantity.id_for_label }}">

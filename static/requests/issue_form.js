@@ -194,6 +194,10 @@
     return displayField.closest(".issue-item-form")?.querySelector(".material-unit-badge");
   }
 
+  function getMaterialStockHint(displayField) {
+    return displayField.closest(".issue-item-form")?.querySelector(".material-stock-hint");
+  }
+
   function setMaterialUnit(displayField, unitValue) {
     const badge = getMaterialUnitBadge(displayField);
     if (!badge) return;
@@ -208,6 +212,22 @@
     }
   }
 
+  function setMaterialStockHint(displayField, quantityValue, unitValue) {
+    const hint = getMaterialStockHint(displayField);
+    if (!hint) return;
+
+    const quantity = String(quantityValue ?? "").trim();
+    const unit = (unitValue || "").trim();
+    if (!quantity) {
+      hint.hidden = true;
+      hint.textContent = "";
+      return;
+    }
+
+    hint.hidden = false;
+    hint.textContent = `Saldo atual: ${quantity}${unit ? ` ${unit}` : ""}`;
+  }
+
   function applySelectedMaterial(displayField, hiddenField, material) {
     if (!material || !material.id) return;
     const label = material.label || buildOptionLabel(material);
@@ -216,7 +236,9 @@
     displayField.dataset.selectedMaterialId = String(material.id);
     displayField.dataset.selectedLabel = label;
     displayField.dataset.selectedUnit = material.unit || "";
+    displayField.dataset.selectedAvailableQuantity = material.available_quantity || "";
     setMaterialUnit(displayField, material.unit || "");
+    setMaterialStockHint(displayField, material.available_quantity || "", material.unit || "");
     window.clearTimeout(displayField._searchDebounce);
   }
 
@@ -394,7 +416,9 @@
         delete displayField.dataset.selectedMaterialId;
         delete displayField.dataset.selectedLabel;
         delete displayField.dataset.selectedUnit;
+        delete displayField.dataset.selectedAvailableQuantity;
         setMaterialUnit(displayField, "");
+        setMaterialStockHint(displayField, "", "");
         fetchMaterialOptions(displayField, materialSearchUrl, { append: false });
       });
 
@@ -409,7 +433,9 @@
           delete displayField.dataset.selectedMaterialId;
           delete displayField.dataset.selectedLabel;
           delete displayField.dataset.selectedUnit;
+          delete displayField.dataset.selectedAvailableQuantity;
           setMaterialUnit(displayField, "");
+          setMaterialStockHint(displayField, "", "");
         }
       });
 
@@ -437,7 +463,13 @@
           const currentUnit = getMaterialUnitBadge(displayField)?.dataset.unit || "";
           displayField.dataset.selectedUnit = currentUnit;
           setMaterialUnit(displayField, currentUnit);
+          setMaterialStockHint(
+            displayField,
+            displayField.dataset.selectedAvailableQuantity || "",
+            currentUnit
+          );
         } else {
+          setMaterialStockHint(displayField, "", "");
           fetchMaterialOptions(displayField, materialSearchUrl, { append: false });
         }
       }

@@ -40,7 +40,7 @@ def fuzzy_material_matches(query: str, materials_qs, limit: int | None = 20):
     compact_needle = compact_search_text(query)
     needle_tokens = needle.split()
     ranked = []
-    for material in materials_qs.only("id", "sku", "name", "unit").iterator():
+    for material in materials_qs.only("id", "sku", "name", "unit", "stockbalance__quantity").iterator():
         sku = normalize_search_text(material.sku)
         name = normalize_search_text(material.name)
         label = f"{sku} {name}".strip()
@@ -116,7 +116,7 @@ def search_materials(query: str, offset_raw, limit_raw) -> tuple[list[Material],
         limit = 1
     limit = min(limit, 50)
 
-    materials_qs = Material.objects.all().order_by("sku")
+    materials_qs = Material.objects.select_related("stockbalance").all().order_by("sku")
 
     if not query:
         materials = list(materials_qs[offset : offset + limit])

@@ -168,8 +168,9 @@ def test_material_search_filters_by_sku_and_name(client):
 
 
 def test_api_material_search_returns_paginated_results(client):
-    Material.objects.create(sku="API-001", name="Cimento API", unit="sc")
+    material_1 = Material.objects.create(sku="API-001", name="Cimento API", unit="sc")
     Material.objects.create(sku="API-002", name="Areia API", unit="m3")
+    StockBalance.objects.create(material=material_1, quantity="7.000")
 
     response = client.get(API_MATERIAL_SEARCH_URL, {"q": "API", "offset": 0, "limit": 1})
     assert response.status_code == 200
@@ -178,6 +179,7 @@ def test_api_material_search_returns_paginated_results(client):
     assert len(payload["results"]) == 1
     assert payload["has_more"] is True
     assert payload["results"][0]["sku"].startswith("API-")
+    assert "available_quantity" in payload["results"][0]
 
 
 def test_material_search_returns_fuzzy_matches_by_default(client):

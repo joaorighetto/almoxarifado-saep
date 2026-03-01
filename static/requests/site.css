@@ -280,6 +280,14 @@ ul.errorlist {
   position: relative;
 }
 
+.material-stock-hint {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e4a3a;
+}
+
 .material-suggestions {
   margin-top: 0.35rem;
   border: 1px solid #bccdc6;
