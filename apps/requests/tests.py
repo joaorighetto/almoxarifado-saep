@@ -166,6 +166,19 @@ def test_material_search_filters_by_sku_and_name(client):
     assert results_by_name[0]["name"] == "Cimento"
 
 
+def test_api_material_search_returns_paginated_results(client):
+    Material.objects.create(sku="API-001", name="Cimento API", unit="sc")
+    Material.objects.create(sku="API-002", name="Areia API", unit="m3")
+
+    response = client.get("/api/materiais/search/", {"q": "API", "offset": 0, "limit": 1})
+    assert response.status_code == 200
+
+    payload = response.json()
+    assert len(payload["results"]) == 1
+    assert payload["has_more"] is True
+    assert payload["results"][0]["sku"].startswith("API-")
+
+
 def test_material_search_returns_fuzzy_matches_by_default(client):
     Material.objects.create(sku="CIMENTO-001", name="Cimento", unit="sc")
     Material.objects.create(sku="AREIA-001", name="Areia Fina", unit="m3")

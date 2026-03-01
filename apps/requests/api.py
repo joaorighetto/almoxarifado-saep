@@ -4,8 +4,11 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from rest_framework import serializers, viewsets
 
+from .material_search import search_materials
 from .models import IssueItem, IssueRequest
 from .services import append_issue_to_xlsx
 from .stock import StockValidationError, consume_stock_for_issue
@@ -92,3 +95,30 @@ class IssueRequestViewSet(viewsets.ModelViewSet):
         issue = serializer.save()
         xlsx_file = Path(settings.EXPORT_DIR) / settings.ISSUE_EXPORT_FILENAME
         append_issue_to_xlsx(issue, issue.items.select_related("material").all(), xlsx_file)
+
+
+@api_view(["GET"])
+def material_search_api(request):
+    """Endpoint REST para busca de materiais por SKU/nome."""
+    query = request.query_params.get("q", "").strip()
+    materials, has_more = search_materials(
+        query,
+        offset_raw=request.query_params.get("offset"),
+        limit_raw=request.query_params.get("limit"),
+    )
+
+    return Response(
+        {
+            "results": [
+                {
+                    "id": material.id,
+                    "sku": material.sku,
+                    "name": material.name,
+                    "unit": material.unit,
+                    "label": f"{material.sku} - {material.name}",
+                }
+                for material in materials
+            ],
+            "has_more": has_more,
+        }
+    )
