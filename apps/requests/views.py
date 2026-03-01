@@ -2,8 +2,7 @@
 
 Este módulo concentra:
 - fluxo de criação e detalhamento de saídas;
-- exportação CSV;
-- endpoint web de busca de materiais.
+- exportação CSV.
 """
 
 import csv
@@ -11,12 +10,11 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from .forms import IssueItemFormSet, IssueRequestForm
-from .material_search import search_materials
 from .models import IssueRequest
 from .services import append_issue_to_xlsx
 from .stock import StockValidationError, consume_stock_for_issue
@@ -162,25 +160,3 @@ def issue_export_csv(request, pk: int):
         )
 
     return response
-
-
-def material_search(request):
-    """Busca materiais por SKU/nome com paginação e ranqueamento fuzzy."""
-    query = request.GET.get("q", "").strip()
-    materials, has_more = search_materials(
-        query,
-        offset_raw=request.GET.get("offset"),
-        limit_raw=request.GET.get("limit"),
-    )
-
-    results = [
-        {
-            "id": material.id,
-            "sku": material.sku,
-            "name": material.name,
-            "unit": material.unit,
-            "label": f"{material.sku} - {material.name}",
-        }
-        for material in materials
-    ]
-    return JsonResponse({"results": results, "has_more": has_more})

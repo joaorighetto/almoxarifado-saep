@@ -15,6 +15,7 @@ from apps.requests.models import IssueItem, IssueRequest
 from apps.requests.services import HEADERS
 
 pytestmark = pytest.mark.django_db
+API_MATERIAL_SEARCH_URL = "/api/materiais/search/"
 
 
 def _normalize_text(value: str) -> str:
@@ -153,13 +154,13 @@ def test_material_search_filters_by_sku_and_name(client):
     Material.objects.create(sku="AREIA-001", name="Areia Fina", unit="m3")
     Material.objects.create(sku="BRITA-001", name="Brita", unit="m3")
 
-    response_by_sku = client.get(reverse("requests:material_search"), {"q": "AREIA"})
+    response_by_sku = client.get(API_MATERIAL_SEARCH_URL, {"q": "AREIA"})
     assert response_by_sku.status_code == 200
     results_by_sku = response_by_sku.json()["results"]
     assert results_by_sku
     assert results_by_sku[0]["sku"] == "AREIA-001"
 
-    response_by_name = client.get(reverse("requests:material_search"), {"q": "mento"})
+    response_by_name = client.get(API_MATERIAL_SEARCH_URL, {"q": "mento"})
     assert response_by_name.status_code == 200
     results_by_name = response_by_name.json()["results"]
     assert results_by_name
@@ -170,7 +171,7 @@ def test_api_material_search_returns_paginated_results(client):
     Material.objects.create(sku="API-001", name="Cimento API", unit="sc")
     Material.objects.create(sku="API-002", name="Areia API", unit="m3")
 
-    response = client.get("/api/materiais/search/", {"q": "API", "offset": 0, "limit": 1})
+    response = client.get(API_MATERIAL_SEARCH_URL, {"q": "API", "offset": 0, "limit": 1})
     assert response.status_code == 200
 
     payload = response.json()
@@ -183,7 +184,7 @@ def test_material_search_returns_fuzzy_matches_by_default(client):
     Material.objects.create(sku="CIMENTO-001", name="Cimento", unit="sc")
     Material.objects.create(sku="AREIA-001", name="Areia Fina", unit="m3")
 
-    response = client.get(reverse("requests:material_search"), {"q": "cimnto"})
+    response = client.get(API_MATERIAL_SEARCH_URL, {"q": "cimnto"})
     assert response.status_code == 200
 
     results = response.json()["results"]
@@ -195,7 +196,7 @@ def test_material_search_matches_sku_without_punctuation(client):
     Material.objects.create(sku="000.000.001", name="Abracadeira", unit="un")
     Material.objects.create(sku="000.000.010", name="Outro Material", unit="un")
 
-    response = client.get(reverse("requests:material_search"), {"q": "000000001"})
+    response = client.get(API_MATERIAL_SEARCH_URL, {"q": "000000001"})
     assert response.status_code == 200
 
     results = response.json()["results"]
@@ -207,19 +208,13 @@ def test_material_search_supports_pagination_for_show_more(client):
     for i in range(1, 26):
         Material.objects.create(sku=f"MAT-{i:03d}", name=f"Material {i:03d}", unit="un")
 
-    response_page_1 = client.get(
-        reverse("requests:material_search"),
-        {"q": "MAT", "offset": 0, "limit": 20},
-    )
+    response_page_1 = client.get(API_MATERIAL_SEARCH_URL, {"q": "MAT", "offset": 0, "limit": 20})
     assert response_page_1.status_code == 200
     payload_1 = response_page_1.json()
     assert len(payload_1["results"]) == 20
     assert payload_1["has_more"] is True
 
-    response_page_2 = client.get(
-        reverse("requests:material_search"),
-        {"q": "MAT", "offset": 20, "limit": 20},
-    )
+    response_page_2 = client.get(API_MATERIAL_SEARCH_URL, {"q": "MAT", "offset": 20, "limit": 20})
     assert response_page_2.status_code == 200
     payload_2 = response_page_2.json()
     assert len(payload_2["results"]) == 5
@@ -241,7 +236,7 @@ def test_material_search_prioritizes_full_phrase_matches(client):
     Material.objects.create(sku="010.000.113", name="Papel Higiênico Fino (4 RL)", unit="un")
     Material.objects.create(sku="010.000.114", name="Papel Toalha (WC) Branco, 2 Dobras", unit="un")
 
-    response = client.get(reverse("requests:material_search"), {"q": "papel higienico"})
+    response = client.get(API_MATERIAL_SEARCH_URL, {"q": "papel higienico"})
     assert response.status_code == 200
 
     results = response.json()["results"]
@@ -256,7 +251,7 @@ def test_material_search_prioritizes_items_covering_all_search_tokens(client):
     Material.objects.create(sku="003", name="Papel Higiênico Folha Dupla", unit="un")
     Material.objects.create(sku="004", name="Toalha de Papel", unit="un")
 
-    response = client.get(reverse("requests:material_search"), {"q": "papel higienico"})
+    response = client.get(API_MATERIAL_SEARCH_URL, {"q": "papel higienico"})
     assert response.status_code == 200
 
     results = response.json()["results"]
