@@ -157,6 +157,21 @@
     return form ? form.dataset.materialSearchUrl : "";
   }
 
+  function getApiUrl() {
+    const form = getIssueFormElement();
+    return form?.dataset.apiUrl || "/api/saidas/";
+  }
+
+  function getIssueDetailUrlTemplate() {
+    const form = getIssueFormElement();
+    return form?.dataset.issueDetailUrlTemplate || "/saidas/0/";
+  }
+
+  function getIssueCreateUrl() {
+    const form = getIssueFormElement();
+    return form?.dataset.issueCreateUrl || "/saidas/nova/";
+  }
+
   function getFormsetElements() {
     const container = document.getElementById("issue-items-formset");
     if (!container) return null;
@@ -333,7 +348,6 @@
       const materials = payload.results || [];
       const hasMore = Boolean(payload.has_more);
 
-      // Ignore stale responses from old query values.
       if (!append && displayField.value.trim() !== query) return;
       if (
         !append &&
@@ -459,28 +473,279 @@
     }
   }
 
+  function getCsrfToken(form) {
+    const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+    return csrfInput ? csrfInput.value : "";
+  }
+
+  function collectIssueItems(form) {
+    const items = [];
+    form.querySelectorAll(".issue-item-form").forEach(function (itemForm) {
+      const deleteField = itemForm.querySelector('input[type="checkbox"][name$="-DELETE"]');
+      if (deleteField?.checked) return;
+
+      const materialField = itemForm.querySelector(".material-id-field");
+      const materialDisplayField = itemForm.querySelector(".material-display-field");
+      const quantityField = itemForm.querySelector('input[name$="-quantity"]');
+      const notesField = itemForm.querySelector('input[name$="-notes"], textarea[name$="-notes"]');
+
+      const materialId = (materialField?.value || "").trim();
+      const quantity = (quantityField?.value || "").trim();
+      const notes = (notesField?.value || "").trim();
+
+      if (!materialId || !quantity) return;
+      if (Number(quantity) <= 0) return;
+
+      items.push({
+        payload: {
+          material: Number(materialId),
+          quantity,
+          notes,
+        },
+        fields: {
+          itemForm,
+          materialDisplayField,
+          quantityField,
+          notesField,
+        },
+      });
+    });
+    return items;
+  }
+
+  function collectIssuePayload(form) {
+    const itemEntries = collectIssueItems(form);
+    return {
+      payload: {
+        requested_by_name: (form.querySelector('[name="requested_by_name"]')?.value || "").trim(),
+        destination: (form.querySelector('[name="destination"]')?.value || "").trim(),
+        notes: (form.querySelector('[name="notes"]')?.value || "").trim(),
+        items: itemEntries.map(function (entry) {
+          return entry.payload;
+        }),
+      },
+      itemEntries,
+    };
+  }
+
+  function toMessageList(errorValue) {
+    if (!errorValue) return [];
+    if (Array.isArray(errorValue)) {
+      return errorValue.filter(function (item) {
+        return typeof item === "string" && item.trim() !== "";
+      });
+    }
+    if (typeof errorValue === "string") {
+      return errorValue.trim() ? [errorValue] : [];
+    }
+    return [];
+  }
+
+  function renderIssueFormAlert(messages) {
+    const alertBox = getClientValidationAlertElement();
+    if (!alertBox) return;
+
+    if (!messages.length) {
+      alertBox.hidden = true;
+      alertBox.replaceChildren();
+      return;
+    }
+
+    alertBox.hidden = false;
+    alertBox.replaceChildren();
+    const title = document.createElement("strong");
+    title.textContent = "Não foi possível salvar.";
+    alertBox.appendChild(title);
+    messages.forEach(function (message) {
+      const line = document.createElement("span");
+      line.textContent = message;
+      alertBox.appendChild(line);
+    });
+  }
+
+  function applyApiFieldErrors(form, errorPayload, itemEntries) {
+    clearFieldInvalidState(form);
+
+    const globalMessages = [];
+
+    const requesterMessages = toMessageList(errorPayload?.requested_by_name);
+    if (requesterMessages.length) {
+      markFieldInvalid(form.querySelector('[name="requested_by_name"]'), requesterMessages[0]);
+    }
+
+    const destinationMessages = toMessageList(errorPayload?.destination);
+    if (destinationMessages.length) {
+      markFieldInvalid(form.querySelector('[name="destination"]'), destinationMessages[0]);
+    }
+
+    const notesMessages = toMessageList(errorPayload?.notes);
+    if (notesMessages.length) {
+      markFieldInvalid(form.querySelector('[name="notes"]'), notesMessages[0]);
+    }
+
+    const nonFieldMessages = toMessageList(errorPayload?.non_field_errors);
+    globalMessages.push(...nonFieldMessages);
+
+    const itemErrors = errorPayload?.items;
+    if (Array.isArray(itemErrors)) {
+      const stockMessages = itemErrors.filter(function (entry) {
+        return typeof entry === "string";
+      });
+      globalMessages.push(...stockMessages);
+
+      itemErrors.forEach(function (entry, index) {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+        const itemEntry = itemEntries[index];
+        if (!itemEntry) return;
+
+        const materialMessages = toMessageList(entry.material);
+        const quantityMessages = toMessageList(entry.quantity);
+        const noteMessages = toMessageList(entry.notes);
+        const nestedNonField = toMessageList(entry.non_field_errors);
+
+        if (materialMessages.length) {
+          markFieldInvalid(itemEntry.fields.materialDisplayField, materialMessages[0]);
+        }
+        if (quantityMessages.length) {
+          markFieldInvalid(itemEntry.fields.quantityField, quantityMessages[0]);
+        }
+        if (noteMessages.length) {
+          markFieldInvalid(itemEntry.fields.notesField, noteMessages[0]);
+        }
+        globalMessages.push(...nestedNonField);
+      });
+    } else if (itemErrors && typeof itemErrors === "object") {
+      Object.keys(itemErrors).forEach(function (itemKey) {
+        const numericIndex = Number(itemKey);
+        if (!Number.isInteger(numericIndex) || numericIndex < 0) return;
+        const entry = itemErrors[itemKey];
+        if (!entry || typeof entry !== "object") return;
+        const itemEntry = itemEntries[numericIndex];
+        if (!itemEntry) return;
+
+        const materialMessages = toMessageList(entry.material);
+        const quantityMessages = toMessageList(entry.quantity);
+        const noteMessages = toMessageList(entry.notes);
+
+        if (materialMessages.length) {
+          markFieldInvalid(itemEntry.fields.materialDisplayField, materialMessages[0]);
+        }
+        if (quantityMessages.length) {
+          markFieldInvalid(itemEntry.fields.quantityField, quantityMessages[0]);
+        }
+        if (noteMessages.length) {
+          markFieldInvalid(itemEntry.fields.notesField, noteMessages[0]);
+        }
+      });
+
+      const itemsNonField = toMessageList(itemErrors.non_field_errors);
+      globalMessages.push(...itemsNonField);
+    }
+
+    const detailMessages = toMessageList(errorPayload?.detail);
+    globalMessages.push(...detailMessages);
+
+    renderIssueFormAlert([...new Set(globalMessages)]);
+  }
+
+  function resolveIssueDetailUrl(issueId) {
+    const id = Number(issueId);
+    if (!Number.isInteger(id) || id <= 0) return "/";
+
+    const template = getIssueDetailUrlTemplate();
+    if (template.includes("/0/")) {
+      return template.replace("/0/", `/${id}/`);
+    }
+    if (template.endsWith("0")) {
+      return `${template.slice(0, -1)}${id}`;
+    }
+    return `/saidas/${id}/`;
+  }
+
+  function renderSuccess(issueId) {
+    const normalizedIssueId = Number(issueId);
+    if (!Number.isInteger(normalizedIssueId) || normalizedIssueId <= 0) return;
+
+    const issueFormInner = document.getElementById("issue-form-inner");
+    if (!issueFormInner) return;
+
+    const issueDetailUrl = resolveIssueDetailUrl(normalizedIssueId);
+    const issueCreateUrl = getIssueCreateUrl();
+
+    issueFormInner.innerHTML = `
+      <div class="success-box">
+        <strong>Saída ${normalizedIssueId} registrada com sucesso.</strong>
+        <div class="success-links">
+          <a href="${issueDetailUrl}">Ver detalhes</a>
+          <span>-</span>
+          <a href="${issueCreateUrl}">Registrar nova saída</a>
+        </div>
+      </div>
+    `;
+
+    setClientValidationAlert("");
+    setRequestStatus("Saída registrada com sucesso.", false);
+  }
+
+  async function submitIssueWithApi(event) {
+    const form = getIssueFormElement();
+    if (!form) return;
+
+    event.preventDefault();
+
+    if (!validateIssueForm()) {
+      return;
+    }
+
+    const apiUrl = getApiUrl();
+    const csrfToken = getCsrfToken(form);
+    const { payload, itemEntries } = collectIssuePayload(form);
+
+    form.classList.add("is-submitting");
+    setRequestStatus("Salvando saída, aguarde...", true);
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-CSRFToken": csrfToken,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.status === 201) {
+        const created = await response.json();
+        renderSuccess(created.id);
+        return;
+      }
+
+      if (response.status === 400) {
+        const errors = await response.json();
+        applyApiFieldErrors(form, errors, itemEntries);
+        setRequestStatus("Não foi possível salvar. Revise os campos destacados.", false);
+        return;
+      }
+
+      applyApiFieldErrors(form, { detail: "Erro inesperado ao registrar a saída." }, itemEntries);
+      setRequestStatus("Erro ao processar a requisição. Tente novamente.", false);
+    } catch (error) {
+      applyApiFieldErrors(form, { detail: "Falha de comunicação com a API." }, itemEntries);
+      setRequestStatus("Erro ao processar a requisição. Tente novamente.", false);
+    } finally {
+      form.classList.remove("is-submitting");
+    }
+  }
+
   function initIssueForm() {
     const materialSearchUrl = getMaterialSearchUrl();
     const form = getIssueFormElement();
-    function getHtmxSwapTarget(event) {
-      return event.detail?.target || event.target || null;
-    }
-
-    function isIssueFormInnerTarget(event) {
-      const target = getHtmxSwapTarget(event);
-      return Boolean(target && target.id === "issue-form-inner");
-    }
 
     if (form && form.dataset.validationHooked !== "true") {
       form.dataset.validationHooked = "true";
-      form.addEventListener("submit", function (event) {
-        if (!validateIssueForm()) {
-          event.preventDefault();
-          return;
-        }
-        form.classList.add("is-submitting");
-        setRequestStatus("Salvando saída, aguarde...", true);
-      });
+      form.addEventListener("submit", submitIssueWithApi);
     }
 
     setupMaterialAutocomplete(document, materialSearchUrl);
@@ -493,62 +758,6 @@
         if (displayField.contains(event.target) || box.contains(event.target)) return;
         hideSuggestions(displayField);
       });
-    });
-
-    document.body.addEventListener("htmx:afterSwap", function (event) {
-      if (isIssueFormInnerTarget(event)) {
-        const target = getHtmxSwapTarget(event);
-        clearFieldInvalidState(target);
-        setClientValidationAlert("");
-        setupMaterialAutocomplete(target, materialSearchUrl);
-        ensureOneEmptyItemForm(materialSearchUrl);
-        const formTarget = getIssueFormElement();
-        if (formTarget) formTarget.classList.remove("is-submitting");
-        if (target.querySelector(".success-box")) {
-          setRequestStatus("Saída registrada com sucesso.", false);
-        } else if (target.querySelector("#stock-validation-flag")) {
-          setRequestStatus("Estoque insuficiente para concluir a saída.", false);
-        } else if (target.querySelector(".errorlist")) {
-          setRequestStatus("Não foi possível salvar. Revise os campos destacados.", false);
-        } else {
-          setRequestStatus("", false);
-        }
-      }
-    });
-
-    document.body.addEventListener("htmx:beforeSwap", function (event) {
-      const target = getHtmxSwapTarget(event);
-      if (!target || target.id !== "issue-form-inner") return;
-
-      const statusCode = Number(event.detail?.xhr?.status || 0);
-      if (![400, 409, 422].includes(statusCode)) return;
-
-      event.detail.shouldSwap = true;
-      event.detail.isError = false;
-    });
-
-    document.body.addEventListener("htmx:beforeRequest", function (event) {
-      const formTarget = getIssueFormElement();
-      if (!formTarget || event.target !== formTarget) return;
-      formTarget.classList.add("is-submitting");
-      setRequestStatus("Salvando saída, aguarde...", true);
-    });
-
-    document.body.addEventListener("htmx:afterRequest", function (event) {
-      const formTarget = getIssueFormElement();
-      if (!formTarget || event.target !== formTarget) return;
-      formTarget.classList.remove("is-submitting");
-      if (event.detail.failed) {
-        setRequestStatus("Não foi possível salvar. Revise os campos destacados.", false);
-        return;
-      }
-    });
-
-    document.body.addEventListener("htmx:responseError", function (event) {
-      const formTarget = getIssueFormElement();
-      if (!formTarget || event.target !== formTarget) return;
-      formTarget.classList.remove("is-submitting");
-      setRequestStatus("Erro ao processar a requisição. Tente novamente.", false);
     });
   }
 

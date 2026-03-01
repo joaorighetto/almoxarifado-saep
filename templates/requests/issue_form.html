@@ -3,10 +3,6 @@
 
 {% block title %}Nova Saída{% endblock %}
 
-{% block extra_head %}
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-{% endblock %}
-
 {% block content %}
       <header class="page-header">
         <div>
@@ -20,9 +16,9 @@
         class="card"
         method="post"
         data-material-search-url="{% url 'requests:material_search' %}"
-        hx-post="{% url 'requests:issue_create' %}"
-        hx-target="#issue-form-inner"
-        hx-swap="innerHTML"
+        data-api-url="/api/saidas/"
+        data-issue-detail-url-template="{% url 'requests:issue_detail' 0 %}"
+        data-issue-create-url="{% url 'requests:issue_create' %}"
       >
         <div id="issue-form-inner">
           {% include "requests/partials/issue_form_inner.html" %}
