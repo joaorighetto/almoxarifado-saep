@@ -25,6 +25,12 @@ class IssueItemSerializer(serializers.ModelSerializer):
         model = IssueItem
         fields = ["id", "material", "material_sku", "material_name", "unit", "quantity", "notes"]
 
+    def validate_quantity(self, value):
+        """Impede criação de item com quantidade zero/negativa."""
+        if value is None or value <= 0:
+            raise serializers.ValidationError("A quantidade deve ser maior que zero.")
+        return value
+
 
 class IssueRequestSerializer(serializers.ModelSerializer):
     """Serializer de saída com criação aninhada dos itens."""
@@ -52,19 +58,31 @@ class IssueRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Destino é obrigatório.")
         return value
 
+    def validate_requested_by_name(self, value: str) -> str:
+        """Impede criação de saída sem solicitante preenchido."""
+        if not (value or "").strip():
+            raise serializers.ValidationError("Solicitante é obrigatório.")
+        return value
+
     def validate_items(self, value):
         """Exige ao menos um item com material e quantidade positiva."""
         if not value:
             raise serializers.ValidationError("Adicione pelo menos um item.")
 
-        valid_items = [
-            item
-            for item in value
-            if item.get("material") and item.get("quantity") is not None and item["quantity"] > 0
-        ]
-        if not valid_items:
+        seen_material_ids = set()
+        duplicated_material_ids = set()
+        for item in value:
+            material = item.get("material")
+            if not material:
+                continue
+            if material.id in seen_material_ids:
+                duplicated_material_ids.add(material.id)
+            else:
+                seen_material_ids.add(material.id)
+
+        if duplicated_material_ids:
             raise serializers.ValidationError(
-                "Adicione pelo menos um material com quantidade maior que zero."
+                "Não adicione o mesmo material mais de uma vez na mesma saída."
             )
         return value
 

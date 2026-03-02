@@ -86,6 +86,63 @@ def test_create_issue_request_via_api_rejects_when_stock_is_insufficient(tmp_pat
     assert Movement.objects.count() == 0
 
 
+def test_create_issue_request_via_api_rejects_item_with_non_positive_quantity(tmp_path, settings):
+    settings.EXPORT_DIR = tmp_path
+    settings.GDRIVE_SYNC_ENABLED = False
+    material = Material.objects.create(sku="M-003", name="Areia Grossa", unit="m3")
+    StockBalance.objects.create(material=material, quantity="8.000")
+    client = APIClient()
+
+    payload = {
+        "requested_by_name": "João",
+        "destination": "Obra C",
+        "document_ref": "REQ-03",
+        "issued_at": (timezone.now() + timedelta(minutes=1)).isoformat(),
+        "items": [
+            {
+                "material": material.id,
+                "quantity": "0",
+                "notes": "",
+            }
+        ],
+    }
+
+    response = client.post("/api/saidas/", payload, format="json")
+
+    assert response.status_code == 400
+    assert "items" in response.data
+    assert IssueRequest.objects.count() == 0
+    assert StockBalance.objects.get(material=material).quantity == Decimal("8.000")
+    assert Movement.objects.count() == 0
+
+
+def test_create_issue_request_via_api_rejects_duplicate_material_items(tmp_path, settings):
+    settings.EXPORT_DIR = tmp_path
+    settings.GDRIVE_SYNC_ENABLED = False
+    material = Material.objects.create(sku="M-004", name="Bica Corrida", unit="m3")
+    StockBalance.objects.create(material=material, quantity="20.000")
+    client = APIClient()
+
+    payload = {
+        "requested_by_name": "João",
+        "destination": "Obra D",
+        "document_ref": "REQ-04",
+        "issued_at": (timezone.now() + timedelta(minutes=1)).isoformat(),
+        "items": [
+            {"material": material.id, "quantity": "1.000", "notes": ""},
+            {"material": material.id, "quantity": "2.000", "notes": ""},
+        ],
+    }
+
+    response = client.post("/api/saidas/", payload, format="json")
+
+    assert response.status_code == 400
+    assert "items" in response.data
+    assert IssueRequest.objects.count() == 0
+    assert StockBalance.objects.get(material=material).quantity == Decimal("20.000")
+    assert Movement.objects.count() == 0
+
+
 def test_issue_create_page_renders_static_form(client):
     response = client.get(reverse("requests:issue_create"))
 
