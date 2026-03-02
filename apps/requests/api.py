@@ -4,9 +4,9 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
+from rest_framework import serializers, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework import serializers, viewsets
 
 from .material_search import search_materials
 from .models import IssueItem, IssueRequest
