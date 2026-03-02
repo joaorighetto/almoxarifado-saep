@@ -8,10 +8,13 @@ from rest_framework import serializers, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .material_search import search_materials
 from .models import IssueItem, IssueRequest
-from .services import append_issue_to_xlsx
-from .stock import StockValidationError, consume_stock_for_issue
+from .services import (
+    StockValidationError,
+    append_issue_to_xlsx,
+    consume_stock_for_issue,
+    search_materials,
+)
 
 
 class IssueItemSerializer(serializers.ModelSerializer):

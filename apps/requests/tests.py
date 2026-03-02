@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 from django.core.management import call_command
+from django.urls import reverse
 from django.utils import timezone
 from openpyxl import Workbook, load_workbook
 from rest_framework.test import APIClient
@@ -140,6 +141,22 @@ def test_create_issue_request_via_api_rejects_duplicate_material_items(tmp_path,
     assert IssueRequest.objects.count() == 0
     assert StockBalance.objects.get(material=material).quantity == Decimal("20.000")
     assert Movement.objects.count() == 0
+
+
+def test_issue_create_page_renders_static_form(client):
+    response = client.get(reverse("requests:issue_create"))
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert 'name="requested_by_name"' in content
+    assert 'id="issue-items-formset"' in content
+    assert 'name="items-TOTAL_FORMS"' in content
+    assert 'data-api-url="/api/saidas/"' in content
+
+
+def test_issue_create_rejects_post(client):
+    response = client.post(reverse("requests:issue_create"), {"requested_by_name": "João"})
+    assert response.status_code == 405
 
 
 def test_material_search_filters_by_sku_and_name(client):

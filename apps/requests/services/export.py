@@ -17,7 +17,7 @@ from pathlib import Path
 from django.conf import settings
 from openpyxl import Workbook, load_workbook
 
-from .models import IssueItem, IssueRequest
+from ..models import IssueItem, IssueRequest
 
 logger = logging.getLogger(__name__)
 

@@ -40,7 +40,9 @@ def fuzzy_material_matches(query: str, materials_qs, limit: int | None = 20):
     compact_needle = compact_search_text(query)
     needle_tokens = needle.split()
     ranked = []
-    for material in materials_qs.only("id", "sku", "name", "unit", "stockbalance__quantity").iterator():
+    for material in materials_qs.only(
+        "id", "sku", "name", "unit", "stockbalance__quantity"
+    ).iterator():
         sku = normalize_search_text(material.sku)
         name = normalize_search_text(material.name)
         label = f"{sku} {name}".strip()
