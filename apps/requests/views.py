@@ -1,7 +1,7 @@
 """Views HTTP da aplicação de saídas de materiais.
 
 Este módulo concentra:
-- fluxo de criação e detalhamento de saídas;
+- detalhamento de saídas;
 - exportação CSV.
 """
 
@@ -9,18 +9,10 @@ import csv
 from pathlib import Path
 
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseNotAllowed
+from django.http import HttpResponse
 from django.shortcuts import render
 
 from .models import IssueRequest
-
-
-def issue_create(request):
-    """Renderiza a página de criação de saída (envio é feito pela API REST)."""
-    if request.method != "GET":
-        return HttpResponseNotAllowed(["GET"])
-    return render(request, "requests/issue_form.html")
-
 
 def issue_detail(request, pk: int):
     """Exibe o detalhe de uma saída específica."""
