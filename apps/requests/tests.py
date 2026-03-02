@@ -86,67 +86,19 @@ def test_create_issue_request_via_api_rejects_when_stock_is_insufficient(tmp_pat
     assert Movement.objects.count() == 0
 
 
-def test_issue_create_via_htmx_shows_stock_error_feedback(client, settings):
-    settings.GDRIVE_SYNC_ENABLED = False
-    material = Material.objects.create(sku="M-HTMX-001", name="Areia Fina", unit="m3")
-    StockBalance.objects.create(material=material, quantity="1.000")
+def test_issue_create_page_renders_static_form(client):
+    response = client.get(reverse("requests:issue_create"))
 
-    payload = {
-        "requested_by_name": "João",
-        "destination": "Obra C",
-        "notes": "",
-        "items-TOTAL_FORMS": "1",
-        "items-INITIAL_FORMS": "0",
-        "items-MIN_NUM_FORMS": "0",
-        "items-MAX_NUM_FORMS": "1000",
-        "items-0-material": str(material.id),
-        "items-0-material_display": f"{material.sku} - {material.name}",
-        "items-0-quantity": "3.000",
-        "items-0-notes": "",
-    }
-
-    response = client.post(
-        reverse("requests:issue_create"),
-        payload,
-        HTTP_HX_REQUEST="true",
-    )
-
-    assert response.status_code == 422
+    assert response.status_code == 200
     content = response.content.decode("utf-8")
-    assert "A saída ultrapassa o saldo disponível" in content
-    assert "Saldo disponível: 1.000 m3. Solicitado: 3.000 m3." in content
-    assert 'id="stock-validation-flag"' in content
-    assert IssueRequest.objects.count() == 0
-    assert StockBalance.objects.get(material=material).quantity == Decimal("1.000")
-    assert Movement.objects.count() == 0
+    assert 'name="requested_by_name"' in content
+    assert 'id="issue-items-formset"' in content
+    assert 'name="items-TOTAL_FORMS"' in content
 
 
-def test_issue_create_via_htmx_returns_form_partial_on_validation_error(client):
-    payload = {
-        "requested_by_name": "",
-        "destination": "",
-        "notes": "",
-        "items-TOTAL_FORMS": "1",
-        "items-INITIAL_FORMS": "0",
-        "items-MIN_NUM_FORMS": "0",
-        "items-MAX_NUM_FORMS": "1000",
-        "items-0-material": "",
-        "items-0-material_display": "",
-        "items-0-quantity": "",
-        "items-0-notes": "",
-    }
-
-    response = client.post(
-        reverse("requests:issue_create"),
-        payload,
-        HTTP_HX_REQUEST="true",
-    )
-
-    assert response.status_code == 422
-    content = response.content.decode("utf-8")
-    assert "Não foi possível salvar." in content
-    assert "Solicitante" in content
-    assert "Destino" in content
+def test_issue_create_rejects_post(client):
+    response = client.post(reverse("requests:issue_create"), {"requested_by_name": "João"})
+    assert response.status_code == 405
 
 
 def test_material_search_filters_by_sku_and_name(client):

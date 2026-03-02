@@ -1,59 +1,147 @@
 {% csrf_token %}
 <div id="client-validation-alert" class="form-alert" role="alert" hidden></div>
-{% if form.non_field_errors or form.errors or formset.non_form_errors %}
-  {% if stock_error %}<div id="stock-validation-flag" hidden></div>{% endif %}
-  <div class="form-alert" role="alert">
-    <strong>Não foi possível salvar.</strong>
-    {% if stock_error %}
-      <span>A saída ultrapassa o saldo disponível para um ou mais materiais.</span>
-    {% else %}
-      <span>Revise os campos obrigatórios destacados e tente novamente.</span>
-    {% endif %}
-    {% for error in formset.non_form_errors %}
-      <span>{{ error }}</span>
-    {% endfor %}
-  </div>
-{% endif %}
+
 <fieldset class="issue-section">
   <legend>Dados da retirada</legend>
   <div class="issue-grid issue-grid-main">
     <div class="form-field">
-      <label for="{{ form.requested_by_name.id_for_label }}">
-        {{ form.requested_by_name.label }}<span class="required-marker">*</span>
+      <label for="id_requested_by_name">
+        Solicitante<span class="required-marker">*</span>
       </label>
-      {{ form.requested_by_name }}
-      {{ form.requested_by_name.errors }}
+      <input
+        id="id_requested_by_name"
+        class="input-control"
+        name="requested_by_name"
+        type="text"
+        maxlength="160"
+      >
     </div>
     <div class="form-field">
-      <label for="{{ form.destination.id_for_label }}">
-        {{ form.destination.label }}<span class="required-marker">*</span>
+      <label for="id_destination">
+        Destino<span class="required-marker">*</span>
       </label>
-      {{ form.destination }}
-      {{ form.destination.errors }}
+      <input
+        id="id_destination"
+        class="input-control"
+        name="destination"
+        type="text"
+        maxlength="160"
+      >
     </div>
     <div class="form-field form-field-full">
-      {{ form.notes.label_tag }}
-      {{ form.notes }}
-      {{ form.notes.errors }}
+      <label for="id_notes">Observações</label>
+      <textarea id="id_notes" class="input-control" name="notes" rows="3"></textarea>
     </div>
   </div>
 </fieldset>
 
 <fieldset class="issue-section">
   <legend>Itens</legend>
-  <div id="issue-items-formset" data-formset-prefix="{{ formset.prefix }}">
-    {{ formset.management_form }}
+  <div id="issue-items-formset" data-formset-prefix="items">
+    <input id="id_items-TOTAL_FORMS" name="items-TOTAL_FORMS" type="hidden" value="1">
+    <input id="id_items-INITIAL_FORMS" name="items-INITIAL_FORMS" type="hidden" value="0">
+    <input id="id_items-MIN_NUM_FORMS" name="items-MIN_NUM_FORMS" type="hidden" value="0">
+    <input id="id_items-MAX_NUM_FORMS" name="items-MAX_NUM_FORMS" type="hidden" value="1000">
+
     <div id="issue-items-list" class="issue-items-list">
-      {% for f in formset %}
-        <div class="issue-item-form">
-          {% include "requests/partials/issue_item_form_fields.html" with form=f show_required_marker=forloop.first %}
+      <div class="issue-item-form">
+        <input
+          id="id_items-0-material"
+          name="items-0-material"
+          type="hidden"
+          class="material-id-field"
+        >
+        <div class="issue-grid issue-grid-item">
+          <div class="form-field form-field-full">
+            <label for="id_items-0-material_display">
+              Material<span class="required-marker">*</span>
+            </label>
+            <input
+              id="id_items-0-material_display"
+              name="items-0-material_display"
+              type="text"
+              class="input-control material-display-field"
+              autocomplete="off"
+              placeholder="Digite nome ou SKU"
+              size="80"
+            >
+            <span class="material-stock-hint" hidden></span>
+          </div>
+          <div class="form-field">
+            <label for="id_items-0-quantity">
+              Quantidade<span class="required-marker">*</span>
+            </label>
+            <div class="quantity-with-unit">
+              <input
+                id="id_items-0-quantity"
+                name="items-0-quantity"
+                type="number"
+                step="0.001"
+                class="input-control"
+              >
+              <span class="material-unit-badge is-empty"></span>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="id_items-0-notes">Observações</label>
+            <input
+              id="id_items-0-notes"
+              name="items-0-notes"
+              type="text"
+              maxlength="200"
+              class="input-control"
+            >
+          </div>
         </div>
-      {% endfor %}
+      </div>
     </div>
 
     <template id="issue-item-empty-form-template">
       <div class="issue-item-form">
-        {% include "requests/partials/issue_item_form_fields.html" with form=formset.empty_form show_required_marker=False %}
+        <input
+          id="id_items-__prefix__-material"
+          name="items-__prefix__-material"
+          type="hidden"
+          class="material-id-field"
+        >
+        <div class="issue-grid issue-grid-item">
+          <div class="form-field form-field-full">
+            <label for="id_items-__prefix__-material_display">Material</label>
+            <input
+              id="id_items-__prefix__-material_display"
+              name="items-__prefix__-material_display"
+              type="text"
+              class="input-control material-display-field"
+              autocomplete="off"
+              placeholder="Digite nome ou SKU"
+              size="80"
+            >
+            <span class="material-stock-hint" hidden></span>
+          </div>
+          <div class="form-field">
+            <label for="id_items-__prefix__-quantity">Quantidade</label>
+            <div class="quantity-with-unit">
+              <input
+                id="id_items-__prefix__-quantity"
+                name="items-__prefix__-quantity"
+                type="number"
+                step="0.001"
+                class="input-control"
+              >
+              <span class="material-unit-badge is-empty"></span>
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="id_items-__prefix__-notes">Observações</label>
+            <input
+              id="id_items-__prefix__-notes"
+              name="items-__prefix__-notes"
+              type="text"
+              maxlength="200"
+              class="input-control"
+            >
+          </div>
+        </div>
       </div>
     </template>
   </div>
