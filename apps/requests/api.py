@@ -136,7 +136,6 @@ def material_search_api(request):
                     "available_quantity": str(
                         material.stockbalance.quantity if hasattr(material, "stockbalance") else 0
                     ),
-                    "label": f"{material.sku} - {material.name}",
                 }
                 for material in materials
             ],
