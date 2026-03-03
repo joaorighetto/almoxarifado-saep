@@ -1,0 +1,35 @@
+{% extends "requests/base.html" %}
+
+{% block title %}Entrar{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Acesso ao SAEP Almoxarifado</h1>
+      <p class="page-subtitle">Entre com seu usuário para criar e acompanhar solicitações.</p>
+    </div>
+  </header>
+
+  <section class="card auth-card">
+    {% if form.errors %}
+      <div class="form-alert" role="alert">
+        Usuário ou senha inválidos.
+      </div>
+    {% endif %}
+
+    <form method="post" class="issue-grid">
+      {% csrf_token %}
+      <div class="form-field">
+        <label for="id_username">Usuário</label>
+        <input id="id_username" name="username" type="text" class="input-control" autofocus required>
+      </div>
+      <div class="form-field">
+        <label for="id_password">Senha</label>
+        <input id="id_password" name="password" type="password" class="input-control" required>
+      </div>
+      <div class="issue-actions">
+        <button type="submit" class="btn-primary">Entrar</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

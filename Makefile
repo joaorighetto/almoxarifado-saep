@@ -17,11 +17,19 @@ MANAGE := $(PYTHON) manage.py
 
 CSV ?= TODOS\ OS\ PRODUTOS.csv
 XLSX ?=
+DEPARTMENT ?= ETA Centro
+SOLICITANTE_USERNAME ?= solicitante
+SOLICITANTE_PASSWORD ?= solicitante123
+CHEFE_USERNAME ?= chefe_secao
+CHEFE_PASSWORD ?= chefe123
+ALMOX_USERNAME ?= almoxarifado
+ALMOX_PASSWORD ?= almox123
 
 .PHONY: help venv install bootstrap dev qa \
 	migrate makemigrations run run-prod shell dbshell collectstatic \
 	lint format check test test-requests test-material-search \
-	import-materials verify-spreadsheet-check verify-spreadsheet-repair verify-spreadsheet-repair-no-sync
+	import-materials seed-request-users \
+	verify-spreadsheet-check verify-spreadsheet-repair verify-spreadsheet-repair-no-sync
 
 help: ## Lista os comandos disponíveis
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-36s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -81,6 +89,16 @@ test-material-search: ## Roda apenas testes de busca de materiais
 
 import-materials: ## Importa materiais via CSV (CSV="arquivo.csv")
 	$(MANAGE) import_materials_csv "$(CSV)"
+
+seed-request-users: ## Cria/atualiza usuários base de solicitacao (solicitante/chefe/almox)
+	$(MANAGE) seed_request_users \
+		--department "$(DEPARTMENT)" \
+		--solicitante-username "$(SOLICITANTE_USERNAME)" \
+		--solicitante-password "$(SOLICITANTE_PASSWORD)" \
+		--chefe-username "$(CHEFE_USERNAME)" \
+		--chefe-password "$(CHEFE_PASSWORD)" \
+		--almox-username "$(ALMOX_USERNAME)" \
+		--almox-password "$(ALMOX_PASSWORD)"
 
 verify-spreadsheet-check: ## Verifica planilha de saídas sem reparar
 	$(MANAGE) verify_issue_spreadsheet --check-only $(if $(XLSX),--path "$(XLSX)",)
