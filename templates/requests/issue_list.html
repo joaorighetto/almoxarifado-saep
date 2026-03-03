@@ -1,0 +1,53 @@
+{% extends "requests/base.html" %}
+
+{% block title %}Saídas do Almoxarifado{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Saídas de Materiais</h1>
+      <p class="page-subtitle">Histórico das saídas registradas pelo almoxarifado.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:warehouse_approved_queue' %}">Fila da chefia</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Data/Hora</th>
+            <th>Solicitante</th>
+            <th>Destino</th>
+            <th>Itens</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for issue in issues %}
+            <tr>
+              <td>#{{ issue.id }}</td>
+              <td>{{ issue.issued_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ issue.requested_by_name|default:"-" }}</td>
+              <td>{{ issue.destination|default:"-" }}</td>
+              <td>{{ issue.items.count }}</td>
+              <td>
+                <div class="actions-inline">
+                  <a class="btn-secondary btn-compact" href="{% url 'requests:issue_detail' issue.id %}">Detalhes</a>
+                  <a class="btn-primary btn-compact" href="{% url 'requests:issue_export_csv' issue.id %}">CSV</a>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="muted-text">Nenhuma saída registrada.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

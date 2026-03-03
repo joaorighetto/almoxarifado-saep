@@ -1,0 +1,65 @@
+{% extends "requests/base.html" %}
+{% load static %}
+
+{% block title %}Fila da Chefia para Almoxarifado{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Fila de Solicitações da Chefia</h1>
+      <p class="page-subtitle">Solicitações aprovadas pelos chefes e pendentes de atendimento no almoxarifado.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:material_request_list' %}">Minhas solicitações</a>
+      <a class="btn-secondary" href="{% url 'requests:warehouse_request_history' %}">Histórico</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <div id="warehouse-status" class="form-request-status" hidden aria-live="polite"></div>
+    <div class="table-wrap">
+      <table class="modern-table" id="warehouse-approved-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Solicitante</th>
+            <th>Departamento</th>
+            <th>Itens</th>
+            <th>Enviada pela chefia em</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for request_obj in approved_requests %}
+            <tr data-request-id="{{ request_obj.id }}">
+              <td>
+                <a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a>
+              </td>
+              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
+              <td>{{ request_obj.requester_department|default:"-" }}</td>
+              <td>{{ request_obj.items.count }}</td>
+              <td>{{ request_obj.approved_at|date:"d/m/Y H:i" }}</td>
+              <td>
+                <button
+                  type="button"
+                  class="btn-primary btn-compact js-fulfill-request"
+                  data-request-id="{{ request_obj.id }}"
+                >
+                  Atender
+                </button>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="muted-text">Nenhuma solicitação pendente vinda da chefia.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'requests/warehouse_approved_queue.js' %}"></script>
+{% endblock %}

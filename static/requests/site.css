@@ -30,6 +30,39 @@ body {
   margin: 2.2rem auto 2rem;
 }
 
+.topbar {
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.topbar-inner {
+  width: min(1120px, 92vw);
+  margin: 0 auto;
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.topbar-user {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.topbar-actions form {
+  margin: 0;
+}
+
 .page-header {
   display: flex;
   align-items: center;
@@ -62,6 +95,10 @@ body {
   box-shadow: 0 16px 36px rgba(16, 45, 35, 0.08);
 }
 
+.auth-card {
+  width: min(520px, 100%);
+}
+
 .btn-secondary,
 .btn-primary {
   display: inline-flex;
@@ -88,6 +125,16 @@ body {
   filter: brightness(1.03);
 }
 
+.btn-danger {
+  border: 1px solid #ab3535;
+  background: linear-gradient(180deg, #c54444, #9f3030);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(1.03);
+}
+
 .btn-secondary {
   border: 1px solid #b8ccc4;
   background: #ffffff;
@@ -97,6 +144,19 @@ body {
 .btn-secondary:hover {
   border-color: #9cb7ad;
   background: #f7fbf9;
+}
+
+.btn-compact {
+  padding: 0.38rem 0.72rem;
+  border-radius: 9px;
+  font-size: 0.86rem;
+}
+
+.btn-attention {
+  border-color: #c39a19;
+  background: #fff4cf;
+  color: #6f5306;
+  animation: notifPulse 1.8s ease-in-out infinite;
 }
 
 .input-control,
@@ -360,10 +420,28 @@ ul.errorlist {
   flex-wrap: wrap;
 }
 
+.issue-actions-left {
+  justify-content: flex-start;
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .form-request-status {
   margin-top: 0.8rem;
   color: #124233;
   font-size: 0.9rem;
+}
+
+.actions-inline {
+  display: inline-flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .form-request-status.is-loading::before {
@@ -457,11 +535,112 @@ table.modern-table {
   font-size: 0.9rem;
 }
 
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.58rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.status-pill-draft {
+  background: #eef3f2;
+  color: #50615d;
+}
+
+.status-pill-submitted {
+  background: #fff4d8;
+  color: #7a5a0a;
+}
+
+.status-pill-approved {
+  background: #ddf5e9;
+  color: #0f5b3d;
+}
+
+.status-pill-rejected {
+  background: #ffe7e7;
+  color: #8a2a2a;
+}
+
+.status-pill-fulfilled {
+  background: #d9f0ff;
+  color: #0f4f78;
+}
+
+.status-pill-canceled {
+  background: #ececec;
+  color: #5f5f5f;
+}
+
 .section-title {
   margin: 0 0 0.65rem;
   font-family: "Space Grotesk", "Manrope", sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.notifications-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.notification-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.9rem;
+}
+
+.notification-card-unread {
+  border-color: #c39a19;
+  background: #fffef4;
+  box-shadow: 0 0 0 2px rgba(195, 154, 25, 0.12);
+}
+
+.notification-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.notification-title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.notification-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.notification-message {
+  margin: 0.65rem 0 0;
+  color: var(--text);
+}
+
+.notification-actions {
+  margin-top: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
 }
 
 .mt-sm {
@@ -488,7 +667,23 @@ table.modern-table {
   }
 }
 
+@keyframes notifPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(195, 154, 25, 0.22);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(195, 154, 25, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(195, 154, 25, 0);
+  }
+}
+
 @media (max-width: 860px) {
+  .topbar-inner {
+    min-height: 3.2rem;
+  }
+
   .issue-grid-main,
   .issue-grid-item,
   .detail-grid {

@@ -1,0 +1,64 @@
+{% extends "requests/base.html" %}
+
+{% block title %}Notificações{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Notificações</h1>
+      <p class="page-subtitle">Acompanhe atualizações do fluxo de solicitações.</p>
+    </div>
+  </header>
+
+  <section class="card">
+      <div class="notifications-header">
+        <span class="status-pill {% if unread_notifications_count %}status-pill-submitted{% else %}status-pill-fulfilled{% endif %}">
+          {{ unread_notifications_count }} não lidas
+        </span>
+        {% if unread_notifications_count %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="mark_all" value="1">
+            <button type="submit" class="btn-secondary btn-compact">Marcar todas como lidas</button>
+          </form>
+        {% endif %}
+      </div>
+
+    <div class="notifications-list">
+      {% for notification in notifications %}
+        <article class="notification-card {% if not notification.is_read %}notification-card-unread{% endif %}">
+          <header class="notification-card-header">
+            <div class="notification-title-wrap">
+              {% if notification.is_read %}
+                <span class="status-pill status-pill-fulfilled">Lida</span>
+              {% else %}
+                <span class="status-pill status-pill-submitted">Nova</span>
+              {% endif %}
+              <h2 class="notification-title">{{ notification.title }}</h2>
+            </div>
+            <span class="muted-text">{{ notification.created_at|date:"d/m/Y H:i" }}</span>
+          </header>
+
+          <p class="notification-message">{{ notification.message|default:"-" }}</p>
+
+          <div class="notification-actions">
+            {% if notification.material_request %}
+              <a class="btn-secondary btn-compact" href="{% url 'requests:material_request_detail' notification.material_request.id %}">
+                Ver solicitação #{{ notification.material_request.id }}
+              </a>
+            {% endif %}
+            {% if not notification.is_read %}
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="notification_id" value="{{ notification.id }}">
+                <button type="submit" class="btn-primary btn-compact">Marcar lida</button>
+              </form>
+            {% endif %}
+          </div>
+        </article>
+      {% empty %}
+        <p class="muted-text">Nenhuma notificação disponível.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

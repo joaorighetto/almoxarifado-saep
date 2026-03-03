@@ -1,0 +1,94 @@
+{% extends "requests/base.html" %}
+
+{% block title %}Solicitação {{ material_request.id }}{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Solicitação #{{ material_request.id }}</h1>
+      <p class="page-subtitle">Detalhes, itens e histórico de eventos.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:material_request_list' %}">Voltar</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="detail-grid">
+      <article class="meta-card">
+        <p class="meta-label">Status</p>
+        <p class="meta-value">{{ material_request.get_status_display }}</p>
+      </article>
+      <article class="meta-card">
+        <p class="meta-label">Solicitante</p>
+        <p class="meta-value">{{ material_request.requester_name|default:material_request.requested_by.username }}</p>
+      </article>
+      <article class="meta-card">
+        <p class="meta-label">Departamento</p>
+        <p class="meta-value">{{ material_request.requester_department|default:"-" }}</p>
+      </article>
+      <article class="meta-card">
+        <p class="meta-label">Observações</p>
+        <p class="meta-value">{{ material_request.notes|default:"-" }}</p>
+      </article>
+    </div>
+
+    <h2 class="section-title">Itens</h2>
+    <div class="table-wrap">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Material</th>
+            <th>Unidade</th>
+            <th>Quantidade</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in material_request.items.all %}
+            <tr>
+              <td>{{ item.material.sku }}</td>
+              <td>{{ item.material.name }}</td>
+              <td>{{ item.material.unit }}</td>
+              <td>{{ item.requested_quantity }}</td>
+              <td>{{ item.notes|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" class="muted-text">Nenhum item registrado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="section-title mt-sm">Timeline</h2>
+    <div class="table-wrap">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>Evento</th>
+            <th>Responsável</th>
+            <th>Observação</th>
+            <th>Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in material_request.events.all %}
+            <tr>
+              <td>{{ event.get_event_type_display }}</td>
+              <td>{{ event.performed_by.username|default:"-" }}</td>
+              <td>{{ event.notes|default:"-" }}</td>
+              <td>{{ event.created_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4" class="muted-text">Sem eventos registrados.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

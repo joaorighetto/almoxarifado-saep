@@ -1,0 +1,58 @@
+{% extends "requests/base.html" %}
+
+{% block title %}Histórico do Almoxarifado{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Histórico do Almoxarifado</h1>
+      <p class="page-subtitle">Solicitações aprovadas e atendidas pelo fluxo do almoxarifado.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:warehouse_approved_queue' %}">Fila de aprovadas</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Solicitante</th>
+            <th>Departamento</th>
+            <th>Itens</th>
+            <th>Saída</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for request_obj in related_requests %}
+            <tr>
+              <td><a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a></td>
+              <td>
+                <span class="status-pill status-pill-{{ request_obj.status }}">
+                  {{ request_obj.get_status_display }}
+                </span>
+              </td>
+              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
+              <td>{{ request_obj.requester_department|default:"-" }}</td>
+              <td>{{ request_obj.items.count }}</td>
+              <td>
+                {% if request_obj.issue_id %}
+                  <a href="{% url 'requests:issue_detail' request_obj.issue_id %}">#{{ request_obj.issue_id }}</a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="muted-text">Nenhuma solicitação encontrada para o almoxarifado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

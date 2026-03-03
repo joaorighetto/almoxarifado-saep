@@ -1,0 +1,134 @@
+{% extends "requests/base.html" %}
+{% load static %}
+
+{% block title %}Nova Solicitação{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Nova Solicitação de Materiais</h1>
+      <p class="page-subtitle">Monte a lista e envie para aprovação do chefe da sua seção.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:material_request_list' %}">Minhas solicitações</a>
+    </div>
+  </header>
+
+  <form
+    id="material-request-form"
+    class="card"
+    method="post"
+    data-material-search-url="/api/materiais/search/"
+    data-api-url="/api/solicitacoes-materiais/"
+    data-list-url="{% url 'requests:material_request_list' %}"
+  >
+    {% csrf_token %}
+    <div id="client-validation-alert" class="form-alert" role="alert" hidden></div>
+
+    <fieldset class="issue-section">
+      <legend>Dados da solicitação</legend>
+      <div class="issue-grid issue-grid-main">
+        <div class="form-field form-field-full">
+          <label for="id_notes">Observações</label>
+          <textarea id="id_notes" class="input-control" name="notes" rows="3"></textarea>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="issue-section">
+      <legend>Itens</legend>
+      <div id="material-request-items-formset" data-formset-prefix="items">
+        <input id="id_items-TOTAL_FORMS" name="items-TOTAL_FORMS" type="hidden" value="1">
+
+        <div id="material-request-items-list" class="issue-items-list">
+          <div class="issue-item-form">
+            <input id="id_items-0-material" name="items-0-material" type="hidden" class="material-id-field">
+            <div class="issue-grid issue-grid-item">
+              <div class="form-field form-field-full">
+                <label for="id_items-0-material_display">Material<span class="required-marker">*</span></label>
+                <input
+                  id="id_items-0-material_display"
+                  name="items-0-material_display"
+                  type="text"
+                  class="input-control material-display-field"
+                  autocomplete="off"
+                  placeholder="Digite nome ou SKU"
+                >
+                <span class="material-stock-hint" hidden></span>
+              </div>
+              <div class="form-field">
+                <label for="id_items-0-requested_quantity">Quantidade<span class="required-marker">*</span></label>
+                <div class="quantity-with-unit">
+                  <input
+                    id="id_items-0-requested_quantity"
+                    name="items-0-requested_quantity"
+                    type="number"
+                    step="0.001"
+                    class="input-control"
+                  >
+                  <span class="material-unit-badge is-empty"></span>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="id_items-0-notes">Observações</label>
+                <input id="id_items-0-notes" name="items-0-notes" type="text" maxlength="200" class="input-control">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <template id="material-request-item-empty-form-template">
+          <div class="issue-item-form">
+            <input id="id_items-__prefix__-material" name="items-__prefix__-material" type="hidden" class="material-id-field">
+            <div class="issue-grid issue-grid-item">
+              <div class="form-field form-field-full">
+                <label for="id_items-__prefix__-material_display">Material</label>
+                <input
+                  id="id_items-__prefix__-material_display"
+                  name="items-__prefix__-material_display"
+                  type="text"
+                  class="input-control material-display-field"
+                  autocomplete="off"
+                  placeholder="Digite nome ou SKU"
+                >
+                <span class="material-stock-hint" hidden></span>
+              </div>
+              <div class="form-field">
+                <label for="id_items-__prefix__-requested_quantity">Quantidade</label>
+                <div class="quantity-with-unit">
+                  <input
+                    id="id_items-__prefix__-requested_quantity"
+                    name="items-__prefix__-requested_quantity"
+                    type="number"
+                    step="0.001"
+                    class="input-control"
+                  >
+                  <span class="material-unit-badge is-empty"></span>
+                </div>
+              </div>
+              <div class="form-field">
+                <label for="id_items-__prefix__-notes">Observações</label>
+                <input id="id_items-__prefix__-notes" name="items-__prefix__-notes" type="text" maxlength="200" class="input-control">
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </fieldset>
+
+    <div class="issue-actions issue-actions-left">
+      <label class="checkbox-inline">
+        <input id="id_submit_now" name="submit_now" type="checkbox" checked>
+        Enviar para aprovação imediatamente
+      </label>
+    </div>
+    <div class="issue-actions">
+      <button class="btn-primary" type="submit">Salvar solicitação</button>
+    </div>
+  </form>
+  <div id="form-request-status" class="form-request-status" hidden aria-live="polite"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'requests/material_request_form.js' %}"></script>
+{% endblock %}

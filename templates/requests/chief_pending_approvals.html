@@ -1,0 +1,76 @@
+{% extends "requests/base.html" %}
+{% load static %}
+
+{% block title %}Pendentes da Chefia{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Aprovação de Solicitações</h1>
+      <p class="page-subtitle">
+        Pendentes da seção {{ department|default:"não definida" }}.
+      </p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:material_request_list' %}">Minhas solicitações</a>
+      <a class="btn-secondary" href="{% url 'requests:chief_request_history' %}">Histórico da seção</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <div id="approval-status" class="form-request-status" hidden aria-live="polite"></div>
+    <div class="table-wrap">
+      <table class="modern-table" id="chief-pending-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Solicitante</th>
+            <th>Departamento</th>
+            <th>Itens</th>
+            <th>Enviada em</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for request_obj in pending_requests %}
+            <tr data-request-id="{{ request_obj.id }}">
+              <td>
+                <a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a>
+              </td>
+              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
+              <td>{{ request_obj.requester_department|default:"-" }}</td>
+              <td>{{ request_obj.items.count }}</td>
+              <td>{{ request_obj.submitted_at|date:"d/m/Y H:i" }}</td>
+              <td>
+                <div class="actions-inline">
+                  <button
+                    type="button"
+                    class="btn-primary btn-compact js-approve-request"
+                    data-request-id="{{ request_obj.id }}"
+                  >
+                    Aprovar
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-danger btn-compact js-reject-request"
+                    data-request-id="{{ request_obj.id }}"
+                  >
+                    Rejeitar
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="muted-text">Nenhuma solicitação pendente para sua seção.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'requests/chief_pending_approvals.js' %}"></script>
+{% endblock %}

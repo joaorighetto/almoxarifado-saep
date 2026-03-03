@@ -1,0 +1,52 @@
+{% extends "requests/base.html" %}
+
+{% block title %}Histórico da Chefia{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Histórico da Seção</h1>
+      <p class="page-subtitle">Solicitações relacionadas à seção {{ department|default:"não definida" }}.</p>
+    </div>
+    <div class="issue-actions issue-actions-tight">
+      <a class="btn-secondary" href="{% url 'requests:chief_pending_approvals' %}">Pendentes</a>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="table-wrap">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Solicitante</th>
+            <th>Itens</th>
+            <th>Criada em</th>
+            <th>Atendida em</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for request_obj in related_requests %}
+            <tr>
+              <td><a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a></td>
+              <td>
+                <span class="status-pill status-pill-{{ request_obj.status }}">
+                  {{ request_obj.get_status_display }}
+                </span>
+              </td>
+              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
+              <td>{{ request_obj.items.count }}</td>
+              <td>{{ request_obj.created_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ request_obj.fulfilled_at|date:"d/m/Y H:i"|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="muted-text">Nenhuma solicitação encontrada para sua seção.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

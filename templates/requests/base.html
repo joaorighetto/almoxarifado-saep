@@ -15,6 +15,28 @@
     {% block extra_head %}{% endblock %}
   </head>
   <body>
+    {% if user.is_authenticated %}
+      <header class="topbar">
+        <div class="topbar-inner">
+          <span class="topbar-user">Conectado como {{ user.username }}</span>
+          <div class="topbar-actions">
+            {% if is_warehouse_user %}
+              <a class="btn-secondary btn-compact" href="{% url 'requests:issue_list' %}">Saídas</a>
+            {% endif %}
+            <a
+              class="btn-secondary btn-compact {% if unread_notifications_count %}btn-attention{% endif %}"
+              href="{% url 'requests:notifications_list' %}"
+            >
+              Notificações{% if unread_notifications_count %} ({{ unread_notifications_count }}){% endif %}
+            </a>
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn-secondary btn-compact">Sair</button>
+            </form>
+          </div>
+        </div>
+      </header>
+    {% endif %}
     <main class="page-wrap">
       {% block content %}{% endblock %}
     </main>
