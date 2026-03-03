@@ -62,7 +62,6 @@ body {
   box-shadow: 0 16px 36px rgba(16, 45, 35, 0.08);
 }
 
-.btn,
 .btn-secondary,
 .btn-primary {
   display: inline-flex;
@@ -187,10 +186,6 @@ ul.errorlist {
   align-items: end;
 }
 
-.issue-grid-item.issue-grid-item-has-quantity-error {
-  align-items: start;
-}
-
 .form-field {
   min-width: 0;
 }
@@ -298,12 +293,6 @@ ul.errorlist {
   box-shadow: 0 10px 22px rgba(12, 42, 33, 0.1);
 }
 
-.material-suggestions-loading {
-  padding: 0.6rem;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
 .material-suggestions-list {
   margin: 0;
   padding: 0.2rem;
@@ -361,12 +350,6 @@ ul.errorlist {
   padding: 0.85rem;
   background: #fcfffd;
   animation: itemIn 220ms ease;
-}
-
-.delete-field {
-  margin: 0.65rem 0 0;
-  font-size: 0.9rem;
-  color: var(--muted);
 }
 
 .issue-actions {

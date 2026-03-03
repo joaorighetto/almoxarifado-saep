@@ -223,10 +223,6 @@
     const label = buildOptionLabel(material);
     displayField.value = label;
     hiddenField.value = String(material.id);
-    displayField.dataset.selectedMaterialId = String(material.id);
-    displayField.dataset.selectedLabel = label;
-    displayField.dataset.selectedUnit = material.unit || "";
-    displayField.dataset.selectedAvailableQuantity = material.available_quantity || "";
     setMaterialUnit(displayField, material.unit || "");
     setMaterialStockHint(displayField, material.available_quantity || "", material.unit || "");
   }
@@ -387,10 +383,6 @@
 
       displayField.addEventListener("input", function () {
         hiddenField.value = "";
-        delete displayField.dataset.selectedMaterialId;
-        delete displayField.dataset.selectedLabel;
-        delete displayField.dataset.selectedUnit;
-        delete displayField.dataset.selectedAvailableQuantity;
         setMaterialUnit(displayField, "");
         setMaterialStockHint(displayField, "", "");
         scheduleMaterialFetch(displayField, materialSearchUrl, { append: false });

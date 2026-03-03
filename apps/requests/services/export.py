@@ -105,11 +105,6 @@ def append_issue_to_xlsx(issue: IssueRequest, items: Iterable[IssueItem], xlsx_p
 
 
 def sync_xlsx_to_gdrive(xlsx_path: Path) -> None:
-    """Função pública para sincronizar a planilha local no Google Drive."""
-    _sync_xlsx_to_gdrive(xlsx_path)
-
-
-def _sync_xlsx_to_gdrive(xlsx_path: Path) -> None:
     """Sincroniza planilha local para um único arquivo no Google Drive.
 
     Estratégia:

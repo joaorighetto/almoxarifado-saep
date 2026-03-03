@@ -13,6 +13,7 @@ from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import render
 
 from .models import IssueRequest
+from .services import HEADERS
 
 
 def issue_create(request):
@@ -37,20 +38,7 @@ def issue_export_csv(request, pk: int):
     response["Content-Disposition"] = f'attachment; filename="saida_{issue.id}.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(
-        [
-            "ID_SAIDA",
-            "DATA_HORA",
-            "SOLICITANTE",
-            "DESTINO",
-            "DOCUMENTO_REF",
-            "SKU",
-            "NOME",
-            "UNIDADE",
-            "QUANTIDADE",
-            "OBS_ITEM",
-        ]
-    )
+    writer.writerow(HEADERS)
 
     for item in issue.items.all():
         m = item.material
