@@ -112,10 +112,20 @@ class IssueRequestViewSet(viewsets.ModelViewSet):
     )
     serializer_class = IssueRequestSerializer
 
+    @transaction.atomic
     def perform_create(self, serializer):
         issue = serializer.save()
         xlsx_file = Path(settings.EXPORT_DIR) / settings.ISSUE_EXPORT_FILENAME
-        append_issue_to_xlsx(issue, issue.items.select_related("material").all(), xlsx_file)
+        try:
+            append_issue_to_xlsx(issue, issue.items.select_related("material").all(), xlsx_file)
+        except Exception as exc:
+            raise serializers.ValidationError(
+                {
+                    "non_field_errors": [
+                        "Não foi possível registrar a saída na planilha. Tente novamente."
+                    ]
+                }
+            ) from exc
 
 
 @api_view(["GET"])

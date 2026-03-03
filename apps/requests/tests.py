@@ -56,6 +56,56 @@ def test_create_issue_request_via_api(tmp_path, settings):
     assert movement.movement_type == Movement.Type.OUT
     assert movement.quantity == Decimal("3.500")
 
+    xlsx_path = tmp_path / settings.ISSUE_EXPORT_FILENAME
+    workbook = load_workbook(xlsx_path, data_only=True)
+    sheet = workbook.active
+    assert [sheet.cell(row=1, column=i).value for i in range(1, len(HEADERS) + 1)] == HEADERS
+    assert sheet.max_row == 2
+    assert sheet.cell(row=2, column=1).value == issue.id
+    assert sheet.cell(row=2, column=6).value == "M-001"
+    assert float(sheet.cell(row=2, column=9).value) == 3.5
+
+
+def test_create_issue_request_via_api_exports_all_items_to_xlsx(tmp_path, settings):
+    settings.EXPORT_DIR = tmp_path
+    settings.GDRIVE_SYNC_ENABLED = False
+    material_1 = Material.objects.create(sku="M-010", name="Areia", unit="m3")
+    material_2 = Material.objects.create(sku="M-011", name="Brita", unit="m3")
+    StockBalance.objects.create(material=material_1, quantity="10.000")
+    StockBalance.objects.create(material=material_2, quantity="8.000")
+    client = APIClient()
+
+    payload = {
+        "requested_by_name": "João",
+        "destination": "Obra A",
+        "document_ref": "REQ-10",
+        "issued_at": (timezone.now() + timedelta(minutes=1)).isoformat(),
+        "notes": "itens multiplos",
+        "items": [
+            {"material": material_1.id, "quantity": "3.000", "notes": "frente"},
+            {"material": material_2.id, "quantity": "2.500", "notes": "fundos"},
+        ],
+    }
+
+    response = client.post("/api/saidas/", payload, format="json")
+
+    assert response.status_code == 201
+    issue = IssueRequest.objects.get(pk=response.data["id"])
+    assert issue.items.count() == 2
+    assert StockBalance.objects.get(material=material_1).quantity == Decimal("7.000")
+    assert StockBalance.objects.get(material=material_2).quantity == Decimal("5.500")
+    assert Movement.objects.filter(material=material_1).count() == 1
+    assert Movement.objects.filter(material=material_2).count() == 1
+
+    xlsx_path = tmp_path / settings.ISSUE_EXPORT_FILENAME
+    workbook = load_workbook(xlsx_path, data_only=True)
+    sheet = workbook.active
+    assert sheet.max_row == 3  # header + 2 itens
+    assert sheet.cell(row=2, column=1).value == issue.id
+    assert sheet.cell(row=3, column=1).value == issue.id
+    exported_skus = {sheet.cell(row=2, column=6).value, sheet.cell(row=3, column=6).value}
+    assert exported_skus == {"M-010", "M-011"}
+
 
 def test_create_issue_request_via_api_rejects_when_stock_is_insufficient(tmp_path, settings):
     settings.EXPORT_DIR = tmp_path
@@ -140,6 +190,44 @@ def test_create_issue_request_via_api_rejects_duplicate_material_items(tmp_path,
     assert "items" in response.data
     assert IssueRequest.objects.count() == 0
     assert StockBalance.objects.get(material=material).quantity == Decimal("20.000")
+    assert Movement.objects.count() == 0
+
+
+def test_create_issue_request_via_api_rolls_back_when_xlsx_export_fails(
+    tmp_path, settings, monkeypatch
+):
+    settings.EXPORT_DIR = tmp_path
+    settings.GDRIVE_SYNC_ENABLED = False
+    material = Material.objects.create(sku="M-005", name="Pedra", unit="m3")
+    StockBalance.objects.create(material=material, quantity="15.000")
+    client = APIClient()
+
+    payload = {
+        "requested_by_name": "João",
+        "destination": "Obra E",
+        "document_ref": "REQ-05",
+        "issued_at": (timezone.now() + timedelta(minutes=1)).isoformat(),
+        "items": [
+            {
+                "material": material.id,
+                "quantity": "4.000",
+                "notes": "",
+            }
+        ],
+    }
+
+    def _raise_export_error(*_args, **_kwargs):
+        raise RuntimeError("xlsx unavailable")
+
+    monkeypatch.setattr("apps.requests.api.append_issue_to_xlsx", _raise_export_error)
+
+    response = client.post("/api/saidas/", payload, format="json")
+
+    assert response.status_code == 400
+    assert "non_field_errors" in response.data
+    assert IssueRequest.objects.count() == 0
+    assert IssueItem.objects.count() == 0
+    assert StockBalance.objects.get(material=material).quantity == Decimal("15.000")
     assert Movement.objects.count() == 0
 
 
