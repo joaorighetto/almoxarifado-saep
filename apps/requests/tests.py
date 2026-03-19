@@ -176,6 +176,7 @@ def test_create_material_request_draft_via_api_requires_authentication():
 def test_create_material_request_draft_via_api_sets_requester_data():
     requester = _create_user_with_department("solicitante_1", "ETA Norte")
     material = Material.objects.create(sku="MR-001", name="Luva", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
     client.force_authenticate(user=requester)
 
@@ -193,11 +194,33 @@ def test_create_material_request_draft_via_api_sets_requester_data():
     assert created.items.count() == 1
 
 
+def test_create_material_request_draft_via_api_rejects_when_stock_is_insufficient():
+    requester = _create_user_with_department("solicitante_sem_saldo", "ETA Norte")
+    material = Material.objects.create(sku="MR-001X", name="Luva", unit="un")
+    StockBalance.objects.create(material=material, quantity="2.000")
+    client = APIClient()
+    client.force_authenticate(user=requester)
+
+    response = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "notes": "Solicitação acima do saldo",
+            "items": [{"material": material.id, "requested_quantity": "5.000", "notes": ""}],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "items" in response.data
+    assert MaterialRequest.objects.count() == 0
+
+
 def test_warehouse_can_create_material_request_for_another_department():
     warehouse_user = _create_user_with_department("almox_create_req", "ALMOX")
     warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
     warehouse_user.groups.add(warehouse_group)
     material = Material.objects.create(sku="MR-001B", name="Botina", unit="par")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
     client.force_authenticate(user=warehouse_user)
 
@@ -221,6 +244,7 @@ def test_warehouse_can_create_material_request_for_itself_without_requester_fiel
     warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
     warehouse_user.groups.add(warehouse_group)
     material = Material.objects.create(sku="MR-001C", name="Fita Zebrada", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
     client.force_authenticate(user=warehouse_user)
 
@@ -243,6 +267,7 @@ def test_warehouse_can_create_material_request_for_itself_without_requester_fiel
 def test_submit_material_request_changes_status_to_submitted():
     requester = _create_user_with_department("solicitante_2", "ETA Sul")
     material = Material.objects.create(sku="MR-002", name="Capacete", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     material_request = MaterialRequest.objects.create(
         requested_by=requester,
         requester_name=requester.username,
@@ -270,11 +295,44 @@ def test_submit_material_request_changes_status_to_submitted():
     ).exists()
 
 
+def test_update_material_request_draft_via_api_rejects_when_stock_is_insufficient():
+    requester = _create_user_with_department("solicitante_edit_sem_saldo", "ETA Norte")
+    material = Material.objects.create(sku="MR-002X", name="Capacete", unit="un")
+    StockBalance.objects.create(material=material, quantity="1.000")
+    material_request = MaterialRequest.objects.create(
+        requested_by=requester,
+        requester_name=requester.username,
+        requester_department="ETA Norte",
+        status=MaterialRequest.Status.DRAFT,
+    )
+    MaterialRequestItem.objects.create(
+        material_request=material_request,
+        material=material,
+        requested_quantity="1.000",
+        notes="",
+    )
+    client = APIClient()
+    client.force_authenticate(user=requester)
+
+    response = client.patch(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/",
+        {
+            "notes": "Agora acima do saldo",
+            "items": [{"material": material.id, "requested_quantity": "3.000", "notes": ""}],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "items" in response.data
+
+
 def test_section_chief_request_is_auto_approved_on_submit():
     chief = _create_user_with_department("chefe_autoapprove", "ETA Sul")
     chief_group, _ = Group.objects.get_or_create(name="chefe_secao")
     chief.groups.add(chief_group)
     material = Material.objects.create(sku="MR-002AA", name="Capa de Chuva", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
     client.force_authenticate(user=chief)
 
@@ -317,6 +375,7 @@ def test_submitted_request_created_by_warehouse_appears_in_chief_pending_queue()
     chief_group, _ = Group.objects.get_or_create(name="chefe_secao")
     chief.groups.add(chief_group)
     material = Material.objects.create(sku="MR-002B", name="Cone", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
     client.force_authenticate(user=warehouse_user)
 
@@ -354,6 +413,7 @@ def test_warehouse_self_request_is_auto_approved_on_submit():
     warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
     warehouse_user.groups.add(warehouse_group)
     material = Material.objects.create(sku="MR-002C", name="Cadeado", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
     client.force_authenticate(user=warehouse_user)
 
@@ -394,6 +454,7 @@ def test_only_requester_created_requests_appear_in_pending_approval_queue():
     chief.groups.add(chief_group)
     requester = _create_user_with_department("solicitante_pending_only", "ETA Norte")
     material = Material.objects.create(sku="MR-002D", name="Abraçadeira", unit="un")
+    StockBalance.objects.create(material=material, quantity="10.000")
     client = APIClient()
 
     client.force_authenticate(user=requester)
@@ -722,7 +783,9 @@ def test_fulfill_rolls_back_when_xlsx_export_fails(tmp_path, settings, monkeypat
     def _raise_export_error(*_args, **_kwargs):
         raise RuntimeError("xlsx unavailable")
 
-    monkeypatch.setattr("apps.requests.api.append_issue_to_xlsx", _raise_export_error)
+    monkeypatch.setattr(
+        "apps.requests.services.material_requests.append_issue_to_xlsx", _raise_export_error
+    )
 
     client = APIClient()
     client.force_authenticate(user=warehouse_user)

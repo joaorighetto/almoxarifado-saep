@@ -4,122 +4,35 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.utils import timezone
-from rest_framework import permissions, serializers, status, viewsets
+from rest_framework import permissions, serializers, viewsets
 from rest_framework.decorators import action, api_view
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from apps.accounts.models import (
-    SECTION_CHIEF_GROUP,
-    Profile,
-    user_department,
-    user_is_section_chief,
-    user_is_section_chief_for_department,
-    user_is_warehouse,
-)
-
-from .models import (
-    IssueItem,
-    IssueRequest,
-    MaterialRequest,
-    MaterialRequestEvent,
-    MaterialRequestItem,
-    RequestNotification,
+from .models import IssueRequest, MaterialRequest
+from .serializers import (
+    IssueRequestSerializer,
+    MaterialSearchResultSerializer,
+    MaterialRequestReadSerializer,
+    MaterialRequestWriteSerializer,
 )
 from .services import (
-    StockValidationError,
     append_issue_to_xlsx,
-    consume_stock_for_issue,
+    approve_material_request,
+    ensure_can_approve_material_request,
+    ensure_can_delete_material_request,
+    ensure_can_fulfill_material_request,
+    ensure_can_submit_material_request,
+    fulfill_material_request,
+    material_request_base_queryset,
+    material_requests_accessible_for_approval,
+    material_requests_accessible_for_fulfillment,
+    material_requests_approved_queue_for_user,
+    material_requests_pending_approval_for_user,
+    material_requests_visible_to_user,
+    reject_material_request,
     search_materials,
+    submit_material_request,
 )
-
-
-class IssueItemSerializer(serializers.ModelSerializer):
-    """Serializer de item com campos derivados do material."""
-
-    material_sku = serializers.CharField(source="material.sku", read_only=True)
-    material_name = serializers.CharField(source="material.name", read_only=True)
-    unit = serializers.CharField(source="material.unit", read_only=True)
-
-    class Meta:
-        model = IssueItem
-        fields = ["id", "material", "material_sku", "material_name", "unit", "quantity", "notes"]
-
-    def validate_quantity(self, value):
-        """Impede criação de item com quantidade zero/negativa."""
-        if value is None or value <= 0:
-            raise serializers.ValidationError("A quantidade deve ser maior que zero.")
-        return value
-
-
-class IssueRequestSerializer(serializers.ModelSerializer):
-    """Serializer de saída com criação aninhada dos itens."""
-
-    items = IssueItemSerializer(many=True)
-
-    class Meta:
-        model = IssueRequest
-        fields = [
-            "id",
-            "requested_by_name",
-            "destination",
-            "document_ref",
-            "issued_at",
-            "notes",
-            "items",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at"]
-
-    def validate_destination(self, value: str) -> str:
-        """Impede criação de saída sem destino preenchido."""
-        if not (value or "").strip():
-            raise serializers.ValidationError("Destino é obrigatório.")
-        return value
-
-    def validate_requested_by_name(self, value: str) -> str:
-        """Impede criação de saída sem solicitante preenchido."""
-        if not (value or "").strip():
-            raise serializers.ValidationError("Solicitante é obrigatório.")
-        return value
-
-    def validate_items(self, value):
-        """Exige ao menos um item com material e quantidade positiva."""
-        if not value:
-            raise serializers.ValidationError("Adicione pelo menos um item.")
-
-        seen_material_ids = set()
-        duplicated_material_ids = set()
-        for item in value:
-            material = item.get("material")
-            if not material:
-                continue
-            if material.id in seen_material_ids:
-                duplicated_material_ids.add(material.id)
-            else:
-                seen_material_ids.add(material.id)
-
-        if duplicated_material_ids:
-            raise serializers.ValidationError(
-                "Não adicione o mesmo material mais de uma vez na mesma saída."
-            )
-        return value
-
-    @transaction.atomic
-    def create(self, validated_data):
-        items_data = validated_data.pop("items", [])
-        issue = IssueRequest.objects.create(**validated_data)
-        IssueItem.objects.bulk_create(
-            [IssueItem(issue=issue, **item_data) for item_data in items_data]
-        )
-        items = list(issue.items.select_related("material").all())
-        try:
-            consume_stock_for_issue(issue, items)
-        except StockValidationError as exc:
-            raise serializers.ValidationError({"items": exc.messages}) from exc
-        return issue
 
 
 class IssueRequestViewSet(viewsets.ModelViewSet):
@@ -146,557 +59,111 @@ class IssueRequestViewSet(viewsets.ModelViewSet):
             ) from exc
 
 
-def _should_auto_approve_request(user, material_request: MaterialRequest) -> bool:
-    requester_department = (material_request.requester_department or "").strip()
-    if user_is_warehouse(user) or user_is_section_chief(user):
-        return requester_department == user_department(user)
-    return False
-
-
-def _requester_identity_for_creation(
-    user,
-    *,
-    requester_name: str = "",
-    requester_department: str = "",
-) -> tuple[str, str]:
-    default_name = (user.get_full_name() or user.username or "").strip()
-    default_department = user_department(user)
-
-    if user_is_warehouse(user):
-        return requester_name or default_name, requester_department or default_department
-
-    return default_name, default_department
-
-
-def _create_material_request_event(
-    material_request: MaterialRequest,
-    event_type: str,
-    performed_by=None,
-    notes: str = "",
-) -> None:
-    MaterialRequestEvent.objects.create(
-        material_request=material_request,
-        event_type=event_type,
-        performed_by=performed_by,
-        notes=notes or "",
-    )
-
-
-def _notify_users(
-    users,
-    *,
-    material_request: MaterialRequest,
-    category: str,
-    title: str,
-    message: str,
-) -> None:
-    user_ids = []
-    for user in users:
-        user_id = getattr(user, "id", None)
-        if user_id:
-            user_ids.append(user_id)
-    unique_ids = sorted(set(user_ids))
-    if not unique_ids:
-        return
-
-    RequestNotification.objects.bulk_create(
-        [
-            RequestNotification(
-                user_id=user_id,
-                material_request=material_request,
-                category=category,
-                title=title,
-                message=message,
-            )
-            for user_id in unique_ids
-        ]
-    )
-
-
-def _section_chiefs_for_department(department: str):
-    dep = (department or "").strip()
-    if not dep:
-        return []
-    return (
-        Profile.objects.select_related("user")
-        .filter(
-            department=dep,
-            user__is_active=True,
-            user__groups__name=SECTION_CHIEF_GROUP,
-        )
-        .distinct()
-    )
-
-
-class MaterialRequestItemSerializer(serializers.ModelSerializer):
-    """Serializer de item solicitado com metadados do material."""
-
-    material_sku = serializers.CharField(source="material.sku", read_only=True)
-    material_name = serializers.CharField(source="material.name", read_only=True)
-    unit = serializers.CharField(source="material.unit", read_only=True)
-
-    class Meta:
-        model = MaterialRequestItem
-        fields = [
-            "id",
-            "material",
-            "material_sku",
-            "material_name",
-            "unit",
-            "requested_quantity",
-            "notes",
-        ]
-
-    def validate_requested_quantity(self, value):
-        if value is None or value <= 0:
-            raise serializers.ValidationError("A quantidade deve ser maior que zero.")
-        return value
-
-
-class MaterialRequestSerializer(serializers.ModelSerializer):
-    """Serializer de solicitação com itens aninhados."""
-
-    items = MaterialRequestItemSerializer(many=True, required=False)
-    requested_by_username = serializers.CharField(source="requested_by.username", read_only=True)
-
-    class Meta:
-        model = MaterialRequest
-        fields = [
-            "id",
-            "requested_by",
-            "requested_by_username",
-            "requester_name",
-            "requester_department",
-            "status",
-            "notes",
-            "submitted_at",
-            "approved_at",
-            "approved_by",
-            "rejected_at",
-            "rejected_by",
-            "rejection_reason",
-            "fulfilled_at",
-            "fulfilled_by",
-            "issue",
-            "canceled_at",
-            "canceled_by",
-            "cancellation_reason",
-            "items",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = [
-            "requested_by",
-            "requested_by_username",
-            "status",
-            "submitted_at",
-            "approved_at",
-            "approved_by",
-            "rejected_at",
-            "rejected_by",
-            "rejection_reason",
-            "fulfilled_at",
-            "fulfilled_by",
-            "issue",
-            "canceled_at",
-            "canceled_by",
-            "cancellation_reason",
-            "created_at",
-            "updated_at",
-        ]
-
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        request = self.context["request"]
-        if request.method != "POST" or not user_is_warehouse(request.user):
-            return attrs
-
-        requester_name = str(attrs.get("requester_name", "")).strip()
-        requester_department = str(attrs.get("requester_department", "")).strip()
-        if requester_name:
-            attrs["requester_name"] = requester_name
-        if requester_department:
-            attrs["requester_department"] = requester_department
-        if bool(requester_name) != bool(requester_department):
-            raise serializers.ValidationError(
-                {
-                    "requester_department": [
-                        "Informe solicitante e departamento para solicitações de outras seções."
-                    ]
-                }
-            )
-        return attrs
-
-    def validate_items(self, value):
-        seen_material_ids = set()
-        for item in value:
-            material = item.get("material")
-            if not material:
-                continue
-            if material.id in seen_material_ids:
-                raise serializers.ValidationError(
-                    "Não adicione o mesmo material mais de uma vez na mesma solicitação."
-                )
-            seen_material_ids.add(material.id)
-        return value
-
-    @transaction.atomic
-    def create(self, validated_data):
-        request = self.context["request"]
-        user = request.user
-        items_data = validated_data.pop("items", [])
-        requester_name = str(validated_data.pop("requester_name", "")).strip()
-        requester_department = str(validated_data.pop("requester_department", "")).strip()
-        requester_name, requester_department = _requester_identity_for_creation(
-            user,
-            requester_name=requester_name,
-            requester_department=requester_department,
-        )
-
-        material_request = MaterialRequest.objects.create(
-            requested_by=user,
-            requester_name=requester_name,
-            requester_department=requester_department,
-            **validated_data,
-        )
-        if items_data:
-            MaterialRequestItem.objects.bulk_create(
-                [
-                    MaterialRequestItem(material_request=material_request, **item_data)
-                    for item_data in items_data
-                ]
-            )
-        _create_material_request_event(
-            material_request,
-            MaterialRequestEvent.EventType.CREATED,
-            performed_by=user,
-        )
-        return material_request
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        if instance.status != MaterialRequest.Status.DRAFT:
-            raise serializers.ValidationError(
-                {"status": ["Somente solicitações em rascunho podem ser editadas."]}
-            )
-
-        items_data = validated_data.pop("items", None)
-        instance.notes = validated_data.get("notes", instance.notes)
-        instance.save(update_fields=["notes", "updated_at"])
-
-        if items_data is not None:
-            instance.items.all().delete()
-            if items_data:
-                MaterialRequestItem.objects.bulk_create(
-                    [
-                        MaterialRequestItem(material_request=instance, **item_data)
-                        for item_data in items_data
-                    ]
-                )
-        return instance
-
-
 class MaterialRequestViewSet(viewsets.ModelViewSet):
     """API REST para solicitações de materiais com aprovação por seção."""
 
-    serializer_class = MaterialRequestSerializer
+    serializer_class = MaterialRequestReadSerializer
     permission_classes = [permissions.IsAuthenticated]
-    queryset = MaterialRequest.objects.select_related(
-        "requested_by",
-        "approved_by",
-        "rejected_by",
-        "fulfilled_by",
-        "canceled_by",
-        "issue",
-    ).prefetch_related("items__material")
+    queryset = material_request_base_queryset()
+
+    def get_serializer_class(self):
+        if self.action in {"create", "update", "partial_update"}:
+            return MaterialRequestWriteSerializer
+        return MaterialRequestReadSerializer
 
     def get_queryset(self):
         user = self.request.user
-        queryset = super().get_queryset().order_by("-created_at", "-id")
 
         if self.action in {"approve", "reject"}:
-            if not user_is_section_chief(user):
-                return queryset.none()
-            return queryset
+            return material_requests_accessible_for_approval(user)
 
         if self.action == "fulfill":
-            return queryset
+            return material_requests_accessible_for_fulfillment()
 
         if self.action == "pending_approval":
-            if not user_is_section_chief(user):
-                return queryset.none()
-            department = user_department(user)
-            return queryset.filter(
-                status=MaterialRequest.Status.SUBMITTED,
-                requester_department=department,
-            )
+            return material_requests_pending_approval_for_user(user)
 
         if self.action == "approved_queue":
-            if not user_is_warehouse(user):
-                return queryset.none()
-            return queryset.filter(status=MaterialRequest.Status.APPROVED)
+            return material_requests_approved_queue_for_user(user)
 
-        return queryset.filter(requested_by=user)
+        return material_requests_visible_to_user(user)
 
     def perform_destroy(self, instance):
-        if instance.requested_by_id != self.request.user.id:
-            raise PermissionDenied("Você só pode excluir suas próprias solicitações.")
-        if instance.status != MaterialRequest.Status.DRAFT:
-            raise serializers.ValidationError(
-                {"status": ["Somente solicitações em rascunho podem ser excluídas."]}
-            )
+        ensure_can_delete_material_request(self.request.user, instance)
         instance.delete()
 
-    def _ensure_owner(self, material_request: MaterialRequest) -> None:
-        if material_request.requested_by_id != self.request.user.id:
-            raise PermissionDenied("Somente o solicitante pode executar esta ação.")
+    def _allow_any_detail_action(self, material_request: MaterialRequest) -> None:
+        return None
 
-    def _ensure_section_chief(self, material_request: MaterialRequest) -> None:
-        if user_is_section_chief_for_department(
-            self.request.user, material_request.requester_department
-        ):
-            return
-        raise PermissionDenied("Somente o chefe da seção do solicitante pode executar esta ação.")
+    def _ensure_submit_allowed(self, material_request: MaterialRequest) -> None:
+        ensure_can_submit_material_request(self.request.user, material_request)
 
-    def _ensure_warehouse_user(self) -> None:
-        if user_is_warehouse(self.request.user):
-            return
-        raise PermissionDenied("Somente o almoxarifado pode executar esta ação.")
+    def _ensure_approval_allowed(self, material_request: MaterialRequest) -> None:
+        ensure_can_approve_material_request(self.request.user, material_request)
+
+    def _submit_material_request(self, material_request: MaterialRequest) -> MaterialRequest:
+        return submit_material_request(material_request, user=self.request.user)
+
+    def _approve_material_request(self, material_request: MaterialRequest) -> MaterialRequest:
+        return approve_material_request(material_request, user=self.request.user)
+
+    def _reject_material_request(self, material_request: MaterialRequest) -> MaterialRequest:
+        rejection_reason = str(self.request.data.get("reason", "")).strip()
+        return reject_material_request(
+            material_request,
+            user=self.request.user,
+            rejection_reason=rejection_reason,
+        )
+
+    def _fulfill_material_request(self, material_request: MaterialRequest) -> MaterialRequest:
+        return fulfill_material_request(material_request, user=self.request.user)
+
+    def _run_detail_action(self, permission_check, service_call):
+        material_request = self.get_object()
+        permission_check(material_request)
+        material_request = service_call(material_request)
+        return Response(self.get_serializer(material_request).data)
+
+    def _list_action_response(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def submit(self, request, pk=None):
-        material_request = self.get_object()
-        self._ensure_owner(material_request)
-
-        if material_request.status != MaterialRequest.Status.DRAFT:
-            return Response(
-                {"status": ["Somente solicitações em rascunho podem ser enviadas."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not material_request.items.exists():
-            return Response(
-                {"items": ["Adicione pelo menos um item antes de enviar para aprovação."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        submitted_at = timezone.now()
-        update_fields = ["status", "submitted_at", "updated_at"]
-        material_request.status = MaterialRequest.Status.SUBMITTED
-        material_request.submitted_at = submitted_at
-
-        if _should_auto_approve_request(request.user, material_request):
-            material_request.status = MaterialRequest.Status.APPROVED
-            material_request.approved_at = submitted_at
-            material_request.approved_by = request.user
-            update_fields.extend(["approved_at", "approved_by"])
-
-        material_request.save(update_fields=update_fields)
-        _create_material_request_event(
-            material_request,
-            MaterialRequestEvent.EventType.SUBMITTED,
-            performed_by=request.user,
-        )
-        if material_request.status == MaterialRequest.Status.APPROVED:
-            _create_material_request_event(
-                material_request,
-                MaterialRequestEvent.EventType.APPROVED,
-                performed_by=request.user,
-                notes="Autoaprovada por solicitação interna do próprio setor.",
-            )
-            return Response(self.get_serializer(material_request).data)
-
-        chiefs = [
-            profile.user
-            for profile in _section_chiefs_for_department(material_request.requester_department)
-        ]
-        _notify_users(
-            chiefs,
-            material_request=material_request,
-            category=RequestNotification.Category.ACTION_REQUIRED,
-            title=f"Solicitação #{material_request.id} aguardando aprovação",
-            message=(
-                f"{material_request.requester_name or material_request.requested_by.username} "
-                f"enviou uma solicitação para sua aprovação."
-            ),
-        )
-        return Response(self.get_serializer(material_request).data)
+        return self._run_detail_action(self._ensure_submit_allowed, self._submit_material_request)
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def approve(self, request, pk=None):
-        material_request = self.get_object()
-        self._ensure_section_chief(material_request)
-
-        if material_request.status != MaterialRequest.Status.SUBMITTED:
-            return Response(
-                {"status": ["Apenas solicitações enviadas podem ser aprovadas."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        material_request.status = MaterialRequest.Status.APPROVED
-        material_request.approved_at = timezone.now()
-        material_request.approved_by = request.user
-        material_request.save(update_fields=["status", "approved_at", "approved_by", "updated_at"])
-        _create_material_request_event(
-            material_request,
-            MaterialRequestEvent.EventType.APPROVED,
-            performed_by=request.user,
+        return self._run_detail_action(
+            self._ensure_approval_allowed,
+            self._approve_material_request,
         )
-        _notify_users(
-            [material_request.requested_by],
-            material_request=material_request,
-            category=RequestNotification.Category.STATUS_UPDATE,
-            title=f"Solicitação #{material_request.id} aprovada",
-            message="Sua solicitação foi aprovada e está na fila do almoxarifado.",
-        )
-        return Response(self.get_serializer(material_request).data)
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def reject(self, request, pk=None):
-        material_request = self.get_object()
-        self._ensure_section_chief(material_request)
-
-        if material_request.status != MaterialRequest.Status.SUBMITTED:
-            return Response(
-                {"status": ["Apenas solicitações enviadas podem ser rejeitadas."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        rejection_reason = str(request.data.get("reason", "")).strip()
-        if not rejection_reason:
-            return Response(
-                {"reason": ["Motivo da rejeição é obrigatório."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        material_request.status = MaterialRequest.Status.REJECTED
-        material_request.rejected_at = timezone.now()
-        material_request.rejected_by = request.user
-        material_request.rejection_reason = rejection_reason
-        material_request.save(
-            update_fields=[
-                "status",
-                "rejected_at",
-                "rejected_by",
-                "rejection_reason",
-                "updated_at",
-            ]
-        )
-        _create_material_request_event(
-            material_request,
-            MaterialRequestEvent.EventType.REJECTED,
-            performed_by=request.user,
-            notes=rejection_reason,
-        )
-        _notify_users(
-            [material_request.requested_by],
-            material_request=material_request,
-            category=RequestNotification.Category.STATUS_UPDATE,
-            title=f"Solicitação #{material_request.id} rejeitada",
-            message=f"Motivo: {rejection_reason}",
-        )
-        return Response(self.get_serializer(material_request).data)
+        return self._run_detail_action(self._ensure_approval_allowed, self._reject_material_request)
 
     @action(detail=False, methods=["get"])
     def pending_approval(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return self._list_action_response()
 
     @action(detail=False, methods=["get"])
     def approved_queue(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        return self._list_action_response()
 
     @action(detail=True, methods=["post"])
     @transaction.atomic
     def fulfill(self, request, pk=None):
-        self._ensure_warehouse_user()
-        material_request = self.get_object()
-
-        if material_request.status != MaterialRequest.Status.APPROVED:
-            return Response(
-                {"status": ["Apenas solicitações aprovadas podem ser atendidas."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        requested_items = list(material_request.items.select_related("material").all())
-        if not requested_items:
-            return Response(
-                {"items": ["Solicitação sem itens não pode ser atendida."]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        issue = IssueRequest.objects.create(
-            requested_by_name=material_request.requester_name
-            or material_request.requested_by.username,
-            destination=(material_request.requester_department or "Sem departamento").strip(),
-            document_ref=f"SOL-{material_request.id}",
-            issued_at=timezone.now(),
-            notes=material_request.notes,
-        )
-        IssueItem.objects.bulk_create(
-            [
-                IssueItem(
-                    issue=issue,
-                    material=item.material,
-                    quantity=item.requested_quantity,
-                    notes=item.notes,
-                )
-                for item in requested_items
-            ]
-        )
-        issue_items = list(issue.items.select_related("material").all())
-
-        try:
-            consume_stock_for_issue(issue, issue_items)
-        except StockValidationError as exc:
-            raise serializers.ValidationError({"items": exc.messages}) from exc
-
-        xlsx_file = Path(settings.EXPORT_DIR) / settings.ISSUE_EXPORT_FILENAME
-        try:
-            append_issue_to_xlsx(issue, issue_items, xlsx_file)
-        except Exception as exc:
-            raise serializers.ValidationError(
-                {
-                    "non_field_errors": [
-                        "Não foi possível registrar a saída na planilha. Tente novamente."
-                    ]
-                }
-            ) from exc
-
-        material_request.status = MaterialRequest.Status.FULFILLED
-        material_request.fulfilled_at = timezone.now()
-        material_request.fulfilled_by = request.user
-        material_request.issue = issue
-        material_request.save(
-            update_fields=["status", "fulfilled_at", "fulfilled_by", "issue", "updated_at"]
-        )
-        _create_material_request_event(
-            material_request,
-            MaterialRequestEvent.EventType.FULFILLED,
-            performed_by=request.user,
-            notes=f"Saída gerada: #{issue.id}",
-        )
-        _notify_users(
-            [material_request.requested_by],
-            material_request=material_request,
-            category=RequestNotification.Category.STATUS_UPDATE,
-            title=f"Solicitação #{material_request.id} atendida",
-            message=f"Sua solicitação foi atendida. Saída gerada: #{issue.id}.",
-        )
-        return Response(self.get_serializer(material_request).data)
+        ensure_can_fulfill_material_request(request.user)
+        return self._run_detail_action(self._allow_any_detail_action, self._fulfill_material_request)
 
 
 @api_view(["GET"])
@@ -708,21 +175,11 @@ def material_search_api(request):
         offset_raw=request.query_params.get("offset"),
         limit_raw=request.query_params.get("limit"),
     )
+    serializer = MaterialSearchResultSerializer(materials, many=True)
 
     return Response(
         {
-            "results": [
-                {
-                    "id": material.id,
-                    "sku": material.sku,
-                    "name": material.name,
-                    "unit": material.unit,
-                    "available_quantity": str(
-                        material.stockbalance.quantity if hasattr(material, "stockbalance") else 0
-                    ),
-                }
-                for material in materials
-            ],
+            "results": serializer.data,
             "has_more": has_more,
         }
     )
