@@ -9,8 +9,8 @@ from pathlib import Path
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from apps.accounts.models import (
     SECTION_CHIEF_GROUP,
@@ -147,18 +147,24 @@ def chief_pending_material_requests_for_user(user):
     if not user_is_section_chief(user):
         return material_request_base_queryset().none()
     department = user_department(user)
-    return material_request_base_queryset().filter(
-        status=MaterialRequest.Status.SUBMITTED,
-        requester_department=department,
-    ).order_by("submitted_at", "id")
+    return (
+        material_request_base_queryset()
+        .filter(
+            status=MaterialRequest.Status.SUBMITTED,
+            requester_department=department,
+        )
+        .order_by("submitted_at", "id")
+    )
 
 
 def warehouse_approved_material_requests_for_user(user):
     if not user_is_warehouse(user):
         return material_request_base_queryset().none()
-    return material_request_base_queryset().filter(
-        status=MaterialRequest.Status.APPROVED
-    ).order_by("approved_at", "id")
+    return (
+        material_request_base_queryset()
+        .filter(status=MaterialRequest.Status.APPROVED)
+        .order_by("approved_at", "id")
+    )
 
 
 def material_requests_accessible_for_approval(user):

@@ -11,9 +11,9 @@ from rest_framework.response import Response
 from .models import IssueRequest, MaterialRequest
 from .serializers import (
     IssueRequestSerializer,
-    MaterialSearchResultSerializer,
     MaterialRequestReadSerializer,
     MaterialRequestWriteSerializer,
+    MaterialSearchResultSerializer,
 )
 from .services import (
     append_issue_to_xlsx,
@@ -163,7 +163,9 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def fulfill(self, request, pk=None):
         ensure_can_fulfill_material_request(request.user)
-        return self._run_detail_action(self._allow_any_detail_action, self._fulfill_material_request)
+        return self._run_detail_action(
+            self._allow_any_detail_action, self._fulfill_material_request
+        )
 
 
 @api_view(["GET"])
