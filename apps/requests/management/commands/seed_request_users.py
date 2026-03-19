@@ -40,6 +40,8 @@ class Command(BaseCommand):
             raw_password=options["solicitante_password"],
             department=department,
             group_names=[],
+            is_staff=False,
+            is_superuser=False,
         )
 
         chief = self._upsert_user(
@@ -48,6 +50,8 @@ class Command(BaseCommand):
             raw_password=options["chefe_password"],
             department=department,
             group_names=[chief_group.name],
+            is_staff=False,
+            is_superuser=False,
         )
 
         warehouse = self._upsert_user(
@@ -56,6 +60,8 @@ class Command(BaseCommand):
             raw_password=options["almox_password"],
             department="ALMOXARIFADO",
             group_names=[warehouse_group.name],
+            is_staff=True,
+            is_superuser=True,
         )
 
         self.stdout.write(self.style.SUCCESS("Usuários provisionados com sucesso:"))
@@ -66,7 +72,15 @@ class Command(BaseCommand):
         self.stdout.write(f"- almoxarifado: {warehouse.username} / {options['almox_password']}")
 
     def _upsert_user(
-        self, user_model, username: str, raw_password: str, department: str, group_names: list[str]
+        self,
+        user_model,
+        username: str,
+        raw_password: str,
+        department: str,
+        group_names: list[str],
+        *,
+        is_staff: bool,
+        is_superuser: bool,
     ):
         username = str(username).strip()
         if not username:
@@ -77,8 +91,10 @@ class Command(BaseCommand):
             defaults={"is_active": True},
         )
         user.is_active = True
+        user.is_staff = is_staff
+        user.is_superuser = is_superuser
         user.set_password(raw_password)
-        user.save(update_fields=["is_active", "password"])
+        user.save(update_fields=["is_active", "is_staff", "is_superuser", "password"])
 
         Profile.objects.update_or_create(
             user=user,

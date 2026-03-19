@@ -1,7 +1,4 @@
-"""Comando para carga de materiais e saldos a partir de CSV.
-
-Aceita import incremental e reset seguro dos saldos.
-"""
+"""Comando para carga de materiais e saldos a partir do CSV de posicao de estoque."""
 
 import csv
 from decimal import Decimal, InvalidOperation
@@ -16,7 +13,7 @@ from apps.inventory.models import Material, StockBalance
 class Command(BaseCommand):
     help = (
         "Importa Material e StockBalance a partir de CSV com colunas "
-        "sku,name,unit,ESTOQUE,DETALHAMENTO."
+        "CADPRO, DISC1, UNID1 e QUAN3."
     )
 
     def add_arguments(self, parser):
@@ -32,7 +29,7 @@ class Command(BaseCommand):
             action="store_true",
             help=(
                 "Reset seguro: zera StockBalance e desativa todos os materiais antes de importar "
-                "(sem apagar Material referenciado por histórico)."
+                "(sem apagar Material referenciado por historico)."
             ),
         )
 
@@ -57,31 +54,38 @@ class Command(BaseCommand):
 
             with csv_path.open("r", encoding="utf-8-sig", newline="") as csv_file:
                 reader = csv.DictReader(csv_file, delimiter=";")
-                required_cols = {"sku", "name", "unit", "ESTOQUE", "DETALHAMENTO"}
+                required_cols = {"CADPRO", "DISC1", "UNID1", "QUAN3"}
                 fieldnames = set(reader.fieldnames or [])
                 missing = sorted(required_cols - fieldnames)
                 if missing:
                     raise CommandError(f"CSV sem colunas obrigatórias: {', '.join(missing)}")
 
                 for line_no, row in enumerate(reader, start=2):
-                    sku = (row.get("sku") or "").strip()
+                    sku = (row.get("CADPRO") or "").strip()
                     if not sku:
                         self.stdout.write(
-                            self.style.WARNING(f"Linha {line_no}: sku vazio, ignorada.")
+                            self.style.WARNING(f"Linha {line_no}: CADPRO vazio, ignorada.")
                         )
                         continue
 
-                    name = (row.get("name") or "").strip()
-                    unit = (row.get("unit") or "").strip()
-                    detail = (row.get("DETALHAMENTO") or "").strip()
-                    estoque = self._parse_decimal(row.get("ESTOQUE"), line_no)
+                    name = (row.get("DISC1") or "").strip()
+                    unit = (row.get("UNID1") or "").strip()
+                    if not name or not unit:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Linha {line_no}: sem DISC1/UNID1 preenchidos, ignorada."
+                            )
+                        )
+                        continue
+
+                    estoque = self._parse_decimal(row.get("QUAN3"), line_no)
 
                     material, was_created = Material.objects.update_or_create(
                         sku=sku,
                         defaults={
                             "name": name[:255],
                             "unit": unit[:10],
-                            "description": detail,
+                            "description": "",
                             "is_active": True,
                         },
                     )
@@ -123,4 +127,4 @@ class Command(BaseCommand):
         try:
             return Decimal(normalized)
         except InvalidOperation as exc:
-            raise CommandError(f"Linha {line_no}: valor inválido em ESTOQUE: '{text}'.") from exc
+            raise CommandError(f"Linha {line_no}: valor invalido em QUAN3: '{text}'.") from exc

@@ -69,6 +69,13 @@ pytest -q apps/requests/tests.py -k material_search
 
 Comando: `import_materials_csv`
 
+Colunas esperadas no CSV:
+
+- `CADPRO`
+- `DISC1`
+- `UNID1`
+- `QUAN3`
+
 Uso básico:
 
 ```bash
