@@ -7,6 +7,8 @@ endif
 SHELL := /bin/bash
 MAKEFLAGS += --no-print-directory
 
+ENV_FILE ?= .env
+ENV_EXAMPLE ?= .env.example
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
 PIP ?= $(VENV)/bin/pip
@@ -14,6 +16,9 @@ PYTEST ?= $(VENV)/bin/pytest
 RUFF ?= $(VENV)/bin/ruff
 BLACK ?= $(VENV)/bin/black
 MANAGE := $(PYTHON) manage.py
+DB_FILE ?= db.sqlite3
+EXPORT_FILE ?= var/exports/controle_saidas.xlsx
+LOG_FILE ?= var/log/django.log
 
 CSV ?= TODOS\ OS\ PRODUTOS.csv
 XLSX ?=
@@ -25,7 +30,7 @@ CHEFE_PASSWORD ?= chefe123
 ALMOX_USERNAME ?= almoxarifado
 ALMOX_PASSWORD ?= almox123
 
-.PHONY: help venv install bootstrap dev qa \
+.PHONY: help venv prepare install bootstrap init clean veryclean reset-db dev qa \
 	migrate makemigrations run run-prod shell dbshell collectstatic \
 	lint format format-check check test test-requests test-material-search \
 	import-materials seed-request-users \
@@ -37,11 +42,30 @@ help: ## Lista os comandos disponíveis
 venv: ## Cria o ambiente virtual em .venv (se não existir)
 	@test -d "$(VENV)" || python3 -m venv "$(VENV)"
 
+prepare: venv ## Prepara ambiente local (.venv e .env)
+	@test -f "$(ENV_FILE)" || cp "$(ENV_EXAMPLE)" "$(ENV_FILE)"
+
 install: venv ## Instala dependências de runtime e desenvolvimento
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt -r requirements-dev.txt
 
 bootstrap: install migrate ## Setup inicial completo (deps + migrate)
+
+init: veryclean prepare install migrate ## Recria o ambiente local do zero
+
+reset-db: ## Limpa todos os dados do banco configurado e mantem a estrutura
+	@if [ -x "$(PYTHON)" ]; then \
+		$(MANAGE) flush --noinput; \
+	fi
+	@rm -f "$(DB_FILE)"
+
+clean: reset-db ## Remove dados locais, caches e artefatos gerados
+	@rm -rf "$(DB_FILE)" .pytest_cache .ruff_cache staticfiles
+	@rm -f "$(EXPORT_FILE)" "$(LOG_FILE)"
+	@find . -name "__pycache__" -type d -prune -exec rm -rf {} +
+
+veryclean: clean ## Remove tambem a virtualenv local
+	@rm -rf "$(VENV)"
 
 dev: run ## Alias para subir o servidor de desenvolvimento
 
