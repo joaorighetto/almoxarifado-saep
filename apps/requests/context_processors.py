@@ -1,5 +1,6 @@
 """Context processors para dados globais das telas de requests."""
 
+from apps.accounts.models import user_is_section_chief, user_is_warehouse
 from apps.requests.models import RequestNotification
 
 
@@ -14,6 +15,6 @@ def request_notifications_context(request):
     unread_count = RequestNotification.objects.filter(user=request.user, is_read=False).count()
     return {
         "unread_notifications_count": unread_count,
-        "is_warehouse_user": request.user.groups.filter(name="almoxarifado").exists(),
-        "is_section_chief": request.user.groups.filter(name="chefe_secao").exists(),
+        "is_warehouse_user": user_is_warehouse(request.user),
+        "is_section_chief": user_is_section_chief(request.user),
     }

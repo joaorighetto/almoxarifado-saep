@@ -10,7 +10,14 @@ from rest_framework.decorators import action, api_view
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from apps.accounts.models import Profile
+from apps.accounts.models import (
+    SECTION_CHIEF_GROUP,
+    Profile,
+    user_department,
+    user_is_section_chief,
+    user_is_section_chief_for_department,
+    user_is_warehouse,
+)
 
 from .models import (
     IssueItem,
@@ -139,39 +146,10 @@ class IssueRequestViewSet(viewsets.ModelViewSet):
             ) from exc
 
 
-def _user_department(user) -> str:
-    profile = Profile.objects.filter(user=user).only("department").first()
-    return (profile.department if profile else "").strip()
-
-
-def _is_section_chief(user, department: str) -> bool:
-    """
-    Determine if a user is a section chief of a specific department.
-
-    Args:
-        user: The user object to check authentication and group membership.
-        department (str): The department identifier to validate against the user's department.
-
-    Returns:
-        bool: True if the user is authenticated, belongs to the 'chefe_secao' group,
-              and their department matches the provided department parameter.
-              False otherwise.
-    """
-    if not user.is_authenticated:
-        return False
-    if not user.groups.filter(name="chefe_secao").exists():
-        return False
-    return bool(department) and _user_department(user) == department
-
-
-def _is_warehouse_user(user) -> bool:
-    return bool(user and user.is_authenticated and user.groups.filter(name="almoxarifado").exists())
-
-
 def _should_auto_approve_request(user, material_request: MaterialRequest) -> bool:
     requester_department = (material_request.requester_department or "").strip()
-    if _is_warehouse_user(user) or user.groups.filter(name="chefe_secao").exists():
-        return requester_department == _user_department(user)
+    if user_is_warehouse(user) or user_is_section_chief(user):
+        return requester_department == user_department(user)
     return False
 
 
@@ -182,9 +160,9 @@ def _requester_identity_for_creation(
     requester_department: str = "",
 ) -> tuple[str, str]:
     default_name = (user.get_full_name() or user.username or "").strip()
-    default_department = _user_department(user)
+    default_department = user_department(user)
 
-    if _is_warehouse_user(user):
+    if user_is_warehouse(user):
         return requester_name or default_name, requester_department or default_department
 
     return default_name, default_department
@@ -244,7 +222,7 @@ def _section_chiefs_for_department(department: str):
         .filter(
             department=dep,
             user__is_active=True,
-            user__groups__name="chefe_secao",
+            user__groups__name=SECTION_CHIEF_GROUP,
         )
         .distinct()
     )
@@ -330,7 +308,7 @@ class MaterialRequestSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         request = self.context["request"]
-        if request.method != "POST" or not _is_warehouse_user(request.user):
+        if request.method != "POST" or not user_is_warehouse(request.user):
             return attrs
 
         requester_name = str(attrs.get("requester_name", "")).strip()
@@ -437,7 +415,7 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset().order_by("-created_at", "-id")
 
         if self.action in {"approve", "reject"}:
-            if not user.groups.filter(name="chefe_secao").exists():
+            if not user_is_section_chief(user):
                 return queryset.none()
             return queryset
 
@@ -445,16 +423,16 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
             return queryset
 
         if self.action == "pending_approval":
-            if not user.groups.filter(name="chefe_secao").exists():
+            if not user_is_section_chief(user):
                 return queryset.none()
-            department = _user_department(user)
+            department = user_department(user)
             return queryset.filter(
                 status=MaterialRequest.Status.SUBMITTED,
                 requester_department=department,
             )
 
         if self.action == "approved_queue":
-            if not _is_warehouse_user(user):
+            if not user_is_warehouse(user):
                 return queryset.none()
             return queryset.filter(status=MaterialRequest.Status.APPROVED)
 
@@ -474,12 +452,14 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Somente o solicitante pode executar esta ação.")
 
     def _ensure_section_chief(self, material_request: MaterialRequest) -> None:
-        if _is_section_chief(self.request.user, material_request.requester_department):
+        if user_is_section_chief_for_department(
+            self.request.user, material_request.requester_department
+        ):
             return
         raise PermissionDenied("Somente o chefe da seção do solicitante pode executar esta ação.")
 
     def _ensure_warehouse_user(self) -> None:
-        if _is_warehouse_user(self.request.user):
+        if user_is_warehouse(self.request.user):
             return
         raise PermissionDenied("Somente o almoxarifado pode executar esta ação.")
 

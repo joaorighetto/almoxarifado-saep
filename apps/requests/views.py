@@ -15,7 +15,12 @@ from django.http import HttpResponse, HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from apps.accounts.models import Profile
+from apps.accounts.models import (
+    user_department,
+    user_is_section_chief,
+    user_is_section_chief_for_department,
+    user_is_warehouse,
+)
 
 from .models import IssueRequest, MaterialRequest, RequestNotification
 from .services import HEADERS
@@ -89,11 +94,10 @@ def material_request_list(request):
 @login_required
 def chief_pending_approvals(request):
     """Exibe solicitações pendentes para aprovação da seção do chefe."""
-    if not request.user.groups.filter(name="chefe_secao").exists():
+    if not user_is_section_chief(request.user):
         raise PermissionDenied("Apenas chefe de seção pode acessar esta página.")
 
-    profile = Profile.objects.filter(user=request.user).only("department").first()
-    department = (profile.department if profile else "").strip()
+    department = user_department(request.user)
     pending_requests = (
         MaterialRequest.objects.filter(
             status=MaterialRequest.Status.SUBMITTED,
@@ -112,11 +116,10 @@ def chief_pending_approvals(request):
 @login_required
 def chief_request_history(request):
     """Histórico de solicitações da seção do chefe."""
-    if not request.user.groups.filter(name="chefe_secao").exists():
+    if not user_is_section_chief(request.user):
         raise PermissionDenied("Apenas chefe de seção pode acessar esta página.")
 
-    profile = Profile.objects.filter(user=request.user).only("department").first()
-    department = (profile.department if profile else "").strip()
+    department = user_department(request.user)
     related_requests = (
         MaterialRequest.objects.filter(requester_department=department)
         .select_related("requested_by", "approved_by", "rejected_by", "fulfilled_by", "issue")
@@ -133,7 +136,7 @@ def chief_request_history(request):
 @login_required
 def warehouse_approved_queue(request):
     """Exibe solicitações aprovadas para atendimento do almoxarifado."""
-    if not request.user.groups.filter(name="almoxarifado").exists():
+    if not user_is_warehouse(request.user):
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
     approved_requests = (
@@ -151,7 +154,7 @@ def warehouse_approved_queue(request):
 @login_required
 def issue_list(request):
     """Exibe histórico de saídas para o almoxarifado."""
-    if not request.user.groups.filter(name="almoxarifado").exists():
+    if not user_is_warehouse(request.user):
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
     issues = IssueRequest.objects.prefetch_related("items__material").order_by("-issued_at", "-id")
@@ -161,7 +164,7 @@ def issue_list(request):
 @login_required
 def warehouse_request_history(request):
     """Histórico de solicitações relacionadas ao almoxarifado."""
-    if not request.user.groups.filter(name="almoxarifado").exists():
+    if not user_is_warehouse(request.user):
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
     related_requests = (
@@ -184,16 +187,9 @@ def _can_view_material_request(user, material_request: MaterialRequest) -> bool:
         return True
 
     department = (material_request.requester_department or "").strip()
-    profile = Profile.objects.filter(user=user).only("department").first()
-    user_department = (profile.department if profile else "").strip()
-
-    if (
-        user.groups.filter(name="chefe_secao").exists()
-        and department
-        and department == user_department
-    ):
+    if user_is_section_chief_for_department(user, department):
         return True
-    if user.groups.filter(name="almoxarifado").exists():
+    if user_is_warehouse(user):
         return True
     return False
 

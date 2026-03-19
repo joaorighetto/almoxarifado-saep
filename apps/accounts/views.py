@@ -6,6 +6,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
 
+from .models import user_is_section_chief, user_is_warehouse
+
 
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -18,8 +20,8 @@ class RoleBasedLoginView(LoginView):
             return redirect_to
 
         user = self.request.user
-        if user.groups.filter(name="almoxarifado").exists():
+        if user_is_warehouse(user):
             return reverse("requests:warehouse_approved_queue")
-        if user.groups.filter(name="chefe_secao").exists():
+        if user_is_section_chief(user):
             return reverse("requests:chief_pending_approvals")
         return reverse("requests:material_request_create")
