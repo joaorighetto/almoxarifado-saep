@@ -1,14 +1,7 @@
-"""Views HTTP da aplicação de saídas de materiais.
-
-Este módulo concentra:
-- detalhamento de saídas;
-- exportação CSV.
-"""
+"""Views HTML do fluxo de solicitações e saídas de materiais."""
 
 import csv
-from pathlib import Path
 
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseNotAllowed
@@ -18,54 +11,60 @@ from django.utils import timezone
 from apps.accounts.models import (
     user_department,
     user_is_section_chief,
-    user_is_section_chief_for_department,
     user_is_warehouse,
 )
 
-from .models import IssueRequest, MaterialRequest, RequestNotification
-from .services import HEADERS
+from .models import MaterialRequest, RequestNotification
+from .services import (
+    HEADERS,
+    can_edit_material_request,
+    can_view_material_request,
+    chief_pending_material_requests_for_user,
+    chief_material_request_history_for_user,
+    issue_csv_rows,
+    issue_detail_context,
+    issue_detail_queryset,
+    issue_ordered_queryset,
+    material_request_detail_queryset,
+    material_request_form_context,
+    material_requests_visible_to_user,
+    request_notifications_for_user,
+    warehouse_approved_material_requests_for_user,
+    warehouse_material_request_history,
+)
+
+
+def _require_get(request):
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+    return None
 
 
 def issue_create(request):
     """Renderiza a página de criação de saída (envio é feito pela API REST)."""
-    if request.method != "GET":
-        return HttpResponseNotAllowed(["GET"])
+    method_not_allowed = _require_get(request)
+    if method_not_allowed:
+        return method_not_allowed
     return render(request, "requests/issue_form.html")
 
 
 def issue_detail(request, pk: int):
     """Exibe o detalhe de uma saída específica."""
-    issue = IssueRequest.objects.prefetch_related("items__material").get(pk=pk)
-    xlsx_file = str(Path(settings.EXPORT_DIR) / settings.ISSUE_EXPORT_FILENAME)
-    return render(request, "requests/issue_detail.html", {"issue": issue, "xlsx_path": xlsx_file})
+    issue = get_object_or_404(issue_detail_queryset(), pk=pk)
+    return render(request, "requests/issue_detail.html", issue_detail_context(issue))
 
 
 def issue_export_csv(request, pk: int):
     """Exporta os itens de uma saída em formato CSV."""
-    issue = IssueRequest.objects.prefetch_related("items__material").get(pk=pk)
+    issue = get_object_or_404(issue_detail_queryset(), pk=pk)
 
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="saida_{issue.id}.csv"'
 
     writer = csv.writer(response)
     writer.writerow(HEADERS)
-
-    for item in issue.items.all():
-        m = item.material
-        writer.writerow(
-            [
-                issue.id,
-                issue.issued_at.isoformat(sep=" ", timespec="minutes"),
-                issue.requested_by_name,
-                issue.destination,
-                issue.document_ref,
-                m.sku,
-                m.name,
-                m.unit,
-                str(item.quantity),
-                item.notes,
-            ]
-        )
+    for row in issue_csv_rows(issue):
+        writer.writerow(row)
 
     return response
 
@@ -73,74 +72,44 @@ def issue_export_csv(request, pk: int):
 @login_required
 def material_request_create(request):
     """Renderiza a página de criação de solicitação de materiais via API REST."""
-    if request.method != "GET":
-        return HttpResponseNotAllowed(["GET"])
+    method_not_allowed = _require_get(request)
+    if method_not_allowed:
+        return method_not_allowed
     return render(
         request,
         "requests/material_request_form.html",
-        {
-            "form_mode": "create",
-            "material_request": None,
-            "initial_material_request_data": None,
-            "user_department": user_department(request.user),
-        },
+        material_request_form_context(request.user),
     )
 
 
 @login_required
 def material_request_edit(request, pk: int):
     """Renderiza a página de edição de solicitação em rascunho."""
-    if request.method != "GET":
-        return HttpResponseNotAllowed(["GET"])
+    method_not_allowed = _require_get(request)
+    if method_not_allowed:
+        return method_not_allowed
 
     material_request = get_object_or_404(
         MaterialRequest.objects.prefetch_related("items__material"),
         pk=pk,
         requested_by=request.user,
     )
-    if material_request.status != MaterialRequest.Status.DRAFT:
+    if not can_edit_material_request(request.user, material_request):
         raise PermissionDenied("Somente solicitações em rascunho podem ser editadas.")
-
-    initial_material_request_data = {
-        "id": material_request.id,
-        "requester_name": material_request.requester_name,
-        "requester_department": material_request.requester_department,
-        "notes": material_request.notes,
-        "items": [
-            {
-                "material": item.material_id,
-                "material_sku": item.material.sku,
-                "material_name": item.material.name,
-                "unit": item.material.unit,
-                "requested_quantity": str(item.requested_quantity),
-                "notes": item.notes,
-            }
-            for item in material_request.items.all()
-        ],
-    }
-
     return render(
         request,
         "requests/material_request_form.html",
-        {
-            "form_mode": "edit",
-            "material_request": material_request,
-            "initial_material_request_data": initial_material_request_data,
-            "user_department": user_department(request.user),
-        },
+        material_request_form_context(request.user, material_request),
     )
 
 
 @login_required
 def material_request_list(request):
     """Exibe solicitações criadas pelo usuário autenticado."""
-    requests_qs = (
-        MaterialRequest.objects.filter(requested_by=request.user)
-        .prefetch_related("items__material")
-        .order_by("-created_at", "-id")
-    )
     return render(
-        request, "requests/material_request_list.html", {"material_requests": requests_qs}
+        request,
+        "requests/material_request_list.html",
+        {"material_requests": material_requests_visible_to_user(request.user)},
     )
 
 
@@ -151,18 +120,13 @@ def chief_pending_approvals(request):
         raise PermissionDenied("Apenas chefe de seção pode acessar esta página.")
 
     department = user_department(request.user)
-    pending_requests = (
-        MaterialRequest.objects.filter(
-            status=MaterialRequest.Status.SUBMITTED,
-            requester_department=department,
-        )
-        .prefetch_related("items__material", "requested_by")
-        .order_by("submitted_at", "id")
-    )
     return render(
         request,
         "requests/chief_pending_approvals.html",
-        {"pending_requests": pending_requests, "department": department},
+        {
+            "pending_requests": chief_pending_material_requests_for_user(request.user),
+            "department": department,
+        },
     )
 
 
@@ -173,16 +137,13 @@ def chief_request_history(request):
         raise PermissionDenied("Apenas chefe de seção pode acessar esta página.")
 
     department = user_department(request.user)
-    related_requests = (
-        MaterialRequest.objects.filter(requester_department=department)
-        .select_related("requested_by", "approved_by", "rejected_by", "fulfilled_by", "issue")
-        .prefetch_related("items__material")
-        .order_by("-created_at", "-id")
-    )
     return render(
         request,
         "requests/chief_request_history.html",
-        {"related_requests": related_requests, "department": department},
+        {
+            "related_requests": chief_material_request_history_for_user(request.user),
+            "department": department,
+        },
     )
 
 
@@ -192,15 +153,10 @@ def warehouse_approved_queue(request):
     if not user_is_warehouse(request.user):
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
-    approved_requests = (
-        MaterialRequest.objects.filter(status=MaterialRequest.Status.APPROVED)
-        .prefetch_related("items__material", "requested_by")
-        .order_by("approved_at", "id")
-    )
     return render(
         request,
         "requests/warehouse_approved_queue.html",
-        {"approved_requests": approved_requests},
+        {"approved_requests": warehouse_approved_material_requests_for_user(request.user)},
     )
 
 
@@ -210,8 +166,7 @@ def issue_list(request):
     if not user_is_warehouse(request.user):
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
-    issues = IssueRequest.objects.prefetch_related("items__material").order_by("-issued_at", "-id")
-    return render(request, "requests/issue_list.html", {"issues": issues})
+    return render(request, "requests/issue_list.html", {"issues": issue_ordered_queryset()})
 
 
 @login_required
@@ -220,47 +175,21 @@ def warehouse_request_history(request):
     if not user_is_warehouse(request.user):
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
-    related_requests = (
-        MaterialRequest.objects.filter(
-            status__in=[MaterialRequest.Status.APPROVED, MaterialRequest.Status.FULFILLED]
-        )
-        .select_related("requested_by", "approved_by", "rejected_by", "fulfilled_by", "issue")
-        .prefetch_related("items__material")
-        .order_by("-created_at", "-id")
-    )
     return render(
         request,
         "requests/warehouse_request_history.html",
-        {"related_requests": related_requests},
+        {"related_requests": warehouse_material_request_history()},
     )
-
-
-def _can_view_material_request(user, material_request: MaterialRequest) -> bool:
-    if material_request.requested_by_id == user.id:
-        return True
-
-    department = (material_request.requester_department or "").strip()
-    if user_is_section_chief_for_department(user, department):
-        return True
-    if user_is_warehouse(user):
-        return True
-    return False
 
 
 @login_required
 def material_request_detail(request, pk: int):
     """Exibe detalhes de solicitação e timeline de eventos."""
     material_request = get_object_or_404(
-        MaterialRequest.objects.select_related(
-            "requested_by",
-            "approved_by",
-            "rejected_by",
-            "fulfilled_by",
-            "issue",
-        ).prefetch_related("items__material", "events__performed_by"),
+        material_request_detail_queryset(),
         pk=pk,
     )
-    if not _can_view_material_request(request.user, material_request):
+    if not can_view_material_request(request.user, material_request):
         raise PermissionDenied("Você não tem permissão para visualizar esta solicitação.")
 
     return render(
@@ -289,13 +218,8 @@ def notifications_list(request):
             notification.save(update_fields=["is_read", "read_at", "updated_at"])
         return redirect("requests:notifications_list")
 
-    notifications = (
-        RequestNotification.objects.filter(user=request.user)
-        .select_related("material_request")
-        .order_by("is_read", "-created_at", "-id")
-    )
     return render(
         request,
         "requests/notifications_list.html",
-        {"notifications": notifications},
+        {"notifications": request_notifications_for_user(request.user)},
     )

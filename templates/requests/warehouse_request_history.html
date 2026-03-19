@@ -28,24 +28,7 @@
         </thead>
         <tbody>
           {% for request_obj in related_requests %}
-            <tr>
-              <td><a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a></td>
-              <td>
-                <span class="status-pill status-pill-{{ request_obj.status }}">
-                  {{ request_obj.get_status_display }}
-                </span>
-              </td>
-              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
-              <td>{{ request_obj.requester_department|default:"-" }}</td>
-              <td>{{ request_obj.items.count }}</td>
-              <td>
-                {% if request_obj.issue_id %}
-                  <a href="{% url 'requests:issue_detail' request_obj.issue_id %}">#{{ request_obj.issue_id }}</a>
-                {% else %}
-                  -
-                {% endif %}
-              </td>
-            </tr>
+            {% include "requests/partials/material_request_warehouse_history_row.html" %}
           {% empty %}
             <tr>
               <td colspan="6" class="muted-text">Nenhuma solicitação encontrada para o almoxarifado.</td>

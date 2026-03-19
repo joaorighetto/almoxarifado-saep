@@ -1,0 +1,49 @@
+<div class="issue-item-form">
+  <input
+    id="id_items-{{ item_prefix }}-material"
+    name="items-{{ item_prefix }}-material"
+    type="hidden"
+    class="material-id-field"
+  >
+  <div class="issue-grid issue-grid-item">
+    <div class="form-field form-field-full">
+      <label for="id_items-{{ item_prefix }}-material_display">
+        Material{% if required_fields %}<span class="required-marker">*</span>{% endif %}
+      </label>
+      <input
+        id="id_items-{{ item_prefix }}-material_display"
+        name="items-{{ item_prefix }}-material_display"
+        type="text"
+        class="input-control material-display-field"
+        autocomplete="off"
+        placeholder="Digite nome ou SKU"
+      >
+      <span class="material-stock-hint" hidden></span>
+    </div>
+    <div class="form-field">
+      <label for="id_items-{{ item_prefix }}-requested_quantity">
+        Quantidade{% if required_fields %}<span class="required-marker">*</span>{% endif %}
+      </label>
+      <div class="quantity-with-unit">
+        <input
+          id="id_items-{{ item_prefix }}-requested_quantity"
+          name="items-{{ item_prefix }}-requested_quantity"
+          type="number"
+          step="0.001"
+          class="input-control"
+        >
+        <span class="material-unit-badge is-empty"></span>
+      </div>
+    </div>
+    <div class="form-field">
+      <label for="id_items-{{ item_prefix }}-notes">Observações</label>
+      <input
+        id="id_items-{{ item_prefix }}-notes"
+        name="items-{{ item_prefix }}-notes"
+        type="text"
+        maxlength="200"
+        class="input-control"
+      >
+    </div>
+  </div>
+</div>

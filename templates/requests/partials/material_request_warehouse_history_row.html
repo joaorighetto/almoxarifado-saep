@@ -1,0 +1,16 @@
+<tr>
+  <td>{% include "requests/partials/material_request_link.html" %}</td>
+  <td>
+    {% include "requests/partials/material_request_status.html" %}
+  </td>
+  <td>{% include "requests/partials/material_request_requester.html" %}</td>
+  <td>{{ request_obj.requester_department|default:"-" }}</td>
+  <td>{{ request_obj.items.count }}</td>
+  <td>
+    {% if request_obj.issue_id %}
+      <a href="{% url 'requests:issue_detail' request_obj.issue_id %}">#{{ request_obj.issue_id }}</a>
+    {% else %}
+      -
+    {% endif %}
+  </td>
+</tr>

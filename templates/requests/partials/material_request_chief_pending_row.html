@@ -1,0 +1,27 @@
+<tr data-request-id="{{ request_obj.id }}">
+  <td>
+    {% include "requests/partials/material_request_link.html" %}
+  </td>
+  <td>{% include "requests/partials/material_request_requester.html" %}</td>
+  <td>{{ request_obj.requester_department|default:"-" }}</td>
+  <td>{{ request_obj.items.count }}</td>
+  <td>{{ request_obj.submitted_at|date:"d/m/Y H:i" }}</td>
+  <td>
+    <div class="actions-inline">
+      <button
+        type="button"
+        class="btn-primary btn-compact js-approve-request"
+        data-request-id="{{ request_obj.id }}"
+      >
+        Aprovar
+      </button>
+      <button
+        type="button"
+        class="btn-danger btn-compact js-reject-request"
+        data-request-id="{{ request_obj.id }}"
+      >
+        Rejeitar
+      </button>
+    </div>
+  </td>
+</tr>

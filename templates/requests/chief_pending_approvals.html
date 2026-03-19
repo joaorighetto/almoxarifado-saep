@@ -33,33 +33,7 @@
         </thead>
         <tbody>
           {% for request_obj in pending_requests %}
-            <tr data-request-id="{{ request_obj.id }}">
-              <td>
-                <a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a>
-              </td>
-              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
-              <td>{{ request_obj.requester_department|default:"-" }}</td>
-              <td>{{ request_obj.items.count }}</td>
-              <td>{{ request_obj.submitted_at|date:"d/m/Y H:i" }}</td>
-              <td>
-                <div class="actions-inline">
-                  <button
-                    type="button"
-                    class="btn-primary btn-compact js-approve-request"
-                    data-request-id="{{ request_obj.id }}"
-                  >
-                    Aprovar
-                  </button>
-                  <button
-                    type="button"
-                    class="btn-danger btn-compact js-reject-request"
-                    data-request-id="{{ request_obj.id }}"
-                  >
-                    Rejeitar
-                  </button>
-                </div>
-              </td>
-            </tr>
+            {% include "requests/partials/material_request_chief_pending_row.html" %}
           {% empty %}
             <tr>
               <td colspan="6" class="muted-text">Nenhuma solicitação pendente para sua seção.</td>

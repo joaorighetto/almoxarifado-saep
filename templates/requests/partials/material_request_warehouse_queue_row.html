@@ -1,0 +1,18 @@
+<tr data-request-id="{{ request_obj.id }}">
+  <td>
+    {% include "requests/partials/material_request_link.html" %}
+  </td>
+  <td>{% include "requests/partials/material_request_requester.html" %}</td>
+  <td>{{ request_obj.requester_department|default:"-" }}</td>
+  <td>{{ request_obj.items.count }}</td>
+  <td>{{ request_obj.approved_at|date:"d/m/Y H:i" }}</td>
+  <td>
+    <button
+      type="button"
+      class="btn-primary btn-compact js-fulfill-request"
+      data-request-id="{{ request_obj.id }}"
+    >
+      Atender
+    </button>
+  </td>
+</tr>

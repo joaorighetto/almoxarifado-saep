@@ -24,7 +24,11 @@
       </article>
       <article class="meta-card">
         <p class="meta-label">Solicitante</p>
-        <p class="meta-value">{{ material_request.requester_name|default:material_request.requested_by.username }}</p>
+        <p class="meta-value">
+          {% with request_obj=material_request %}
+            {% include "requests/partials/material_request_requester.html" %}
+          {% endwith %}
+        </p>
       </article>
       <article class="meta-card">
         <p class="meta-label">Departamento</p>

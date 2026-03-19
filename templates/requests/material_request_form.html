@@ -47,25 +47,7 @@
       <legend>Dados da solicitação</legend>
       <div class="issue-grid issue-grid-main">
         {% if is_warehouse_user %}
-          <div class="form-field form-field-full">
-            <label class="checkbox-inline" for="id_is_own_warehouse_request">
-              <input id="id_is_own_warehouse_request" name="is_own_warehouse_request" type="checkbox" checked>
-              Solicitação para o próprio almoxarifado
-            </label>
-          </div>
-          <div class="form-field">
-            <label for="id_requester_name">Solicitante</label>
-            <input id="id_requester_name" class="input-control" name="requester_name" type="text" maxlength="160">
-          </div>
-          <div class="form-field">
-            <label for="id_requester_department">Departamento</label>
-            <input id="id_requester_department" class="input-control" name="requester_department" type="text" maxlength="120">
-          </div>
-          <div class="form-field form-field-full">
-            <p id="warehouse-request-help" class="field-help">
-              Marque para criar uma solicitação interna do almoxarifado, que será automaticamente aprovada ao enviar.
-            </p>
-          </div>
+          {% include "requests/partials/material_request_warehouse_fields.html" %}
         {% endif %}
         <div class="form-field form-field-full">
           <label for="id_notes">Observações</label>
@@ -80,77 +62,11 @@
         <input id="id_items-TOTAL_FORMS" name="items-TOTAL_FORMS" type="hidden" value="1">
 
         <div id="material-request-items-list" class="issue-items-list">
-          <div class="issue-item-form">
-            <input id="id_items-0-material" name="items-0-material" type="hidden" class="material-id-field">
-            <div class="issue-grid issue-grid-item">
-              <div class="form-field form-field-full">
-                <label for="id_items-0-material_display">Material<span class="required-marker">*</span></label>
-                <input
-                  id="id_items-0-material_display"
-                  name="items-0-material_display"
-                  type="text"
-                  class="input-control material-display-field"
-                  autocomplete="off"
-                  placeholder="Digite nome ou SKU"
-                >
-                <span class="material-stock-hint" hidden></span>
-              </div>
-              <div class="form-field">
-                <label for="id_items-0-requested_quantity">Quantidade<span class="required-marker">*</span></label>
-                <div class="quantity-with-unit">
-                  <input
-                    id="id_items-0-requested_quantity"
-                    name="items-0-requested_quantity"
-                    type="number"
-                    step="0.001"
-                    class="input-control"
-                  >
-                  <span class="material-unit-badge is-empty"></span>
-                </div>
-              </div>
-              <div class="form-field">
-                <label for="id_items-0-notes">Observações</label>
-                <input id="id_items-0-notes" name="items-0-notes" type="text" maxlength="200" class="input-control">
-              </div>
-            </div>
-          </div>
+          {% include "requests/partials/material_request_item_form.html" with item_prefix="0" required_fields=True %}
         </div>
 
         <template id="material-request-item-empty-form-template">
-          <div class="issue-item-form">
-            <input id="id_items-__prefix__-material" name="items-__prefix__-material" type="hidden" class="material-id-field">
-            <div class="issue-grid issue-grid-item">
-              <div class="form-field form-field-full">
-                <label for="id_items-__prefix__-material_display">Material</label>
-                <input
-                  id="id_items-__prefix__-material_display"
-                  name="items-__prefix__-material_display"
-                  type="text"
-                  class="input-control material-display-field"
-                  autocomplete="off"
-                  placeholder="Digite nome ou SKU"
-                >
-                <span class="material-stock-hint" hidden></span>
-              </div>
-              <div class="form-field">
-                <label for="id_items-__prefix__-requested_quantity">Quantidade</label>
-                <div class="quantity-with-unit">
-                  <input
-                    id="id_items-__prefix__-requested_quantity"
-                    name="items-__prefix__-requested_quantity"
-                    type="number"
-                    step="0.001"
-                    class="input-control"
-                  >
-                  <span class="material-unit-badge is-empty"></span>
-                </div>
-              </div>
-              <div class="form-field">
-                <label for="id_items-__prefix__-notes">Observações</label>
-                <input id="id_items-__prefix__-notes" name="items-__prefix__-notes" type="text" maxlength="200" class="input-control">
-              </div>
-            </div>
-          </div>
+          {% include "requests/partials/material_request_item_form.html" with item_prefix="__prefix__" required_fields=False %}
         </template>
       </div>
     </fieldset>

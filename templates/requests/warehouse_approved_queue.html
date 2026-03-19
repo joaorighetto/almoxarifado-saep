@@ -31,24 +31,7 @@
         </thead>
         <tbody>
           {% for request_obj in approved_requests %}
-            <tr data-request-id="{{ request_obj.id }}">
-              <td>
-                <a href="{% url 'requests:material_request_detail' request_obj.id %}">#{{ request_obj.id }}</a>
-              </td>
-              <td>{{ request_obj.requester_name|default:request_obj.requested_by.username }}</td>
-              <td>{{ request_obj.requester_department|default:"-" }}</td>
-              <td>{{ request_obj.items.count }}</td>
-              <td>{{ request_obj.approved_at|date:"d/m/Y H:i" }}</td>
-              <td>
-                <button
-                  type="button"
-                  class="btn-primary btn-compact js-fulfill-request"
-                  data-request-id="{{ request_obj.id }}"
-                >
-                  Atender
-                </button>
-              </td>
-            </tr>
+            {% include "requests/partials/material_request_warehouse_queue_row.html" %}
           {% empty %}
             <tr>
               <td colspan="6" class="muted-text">Nenhuma solicitação pendente vinda da chefia.</td>

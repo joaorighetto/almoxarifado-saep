@@ -1,0 +1,10 @@
+<tr>
+  <td>{% include "requests/partials/material_request_link.html" %}</td>
+  <td>
+    {% include "requests/partials/material_request_status.html" %}
+  </td>
+  <td>{% include "requests/partials/material_request_requester.html" %}</td>
+  <td>{{ request_obj.items.count }}</td>
+  <td>{{ request_obj.created_at|date:"d/m/Y H:i" }}</td>
+  <td>{{ request_obj.fulfilled_at|date:"d/m/Y H:i"|default:"-" }}</td>
+</tr>
