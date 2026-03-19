@@ -75,7 +75,60 @@ def material_request_create(request):
     """Renderiza a página de criação de solicitação de materiais via API REST."""
     if request.method != "GET":
         return HttpResponseNotAllowed(["GET"])
-    return render(request, "requests/material_request_form.html")
+    return render(
+        request,
+        "requests/material_request_form.html",
+        {
+            "form_mode": "create",
+            "material_request": None,
+            "initial_material_request_data": None,
+            "user_department": user_department(request.user),
+        },
+    )
+
+
+@login_required
+def material_request_edit(request, pk: int):
+    """Renderiza a página de edição de solicitação em rascunho."""
+    if request.method != "GET":
+        return HttpResponseNotAllowed(["GET"])
+
+    material_request = get_object_or_404(
+        MaterialRequest.objects.prefetch_related("items__material"),
+        pk=pk,
+        requested_by=request.user,
+    )
+    if material_request.status != MaterialRequest.Status.DRAFT:
+        raise PermissionDenied("Somente solicitações em rascunho podem ser editadas.")
+
+    initial_material_request_data = {
+        "id": material_request.id,
+        "requester_name": material_request.requester_name,
+        "requester_department": material_request.requester_department,
+        "notes": material_request.notes,
+        "items": [
+            {
+                "material": item.material_id,
+                "material_sku": item.material.sku,
+                "material_name": item.material.name,
+                "unit": item.material.unit,
+                "requested_quantity": str(item.requested_quantity),
+                "notes": item.notes,
+            }
+            for item in material_request.items.all()
+        ],
+    }
+
+    return render(
+        request,
+        "requests/material_request_form.html",
+        {
+            "form_mode": "edit",
+            "material_request": material_request,
+            "initial_material_request_data": initial_material_request_data,
+            "user_department": user_department(request.user),
+        },
+    )
 
 
 @login_required

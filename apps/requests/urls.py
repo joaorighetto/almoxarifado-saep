@@ -15,6 +15,11 @@ urlpatterns = [
     path("saidas/<int:pk>/csv/", views.issue_export_csv, name="issue_export_csv"),
     path("solicitacoes/nova/", views.material_request_create, name="material_request_create"),
     path("solicitacoes/minhas/", views.material_request_list, name="material_request_list"),
+    path(
+        "solicitacoes/<int:pk>/editar/",
+        views.material_request_edit,
+        name="material_request_edit",
+    ),
     path("solicitacoes/<int:pk>/", views.material_request_detail, name="material_request_detail"),
     path(
         "chefia/solicitacoes/pendentes/",

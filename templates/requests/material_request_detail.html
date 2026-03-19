@@ -9,6 +9,9 @@
       <p class="page-subtitle">Detalhes, itens e histórico de eventos.</p>
     </div>
     <div class="issue-actions issue-actions-tight">
+      {% if material_request.status == "draft" and material_request.requested_by_id == user.id %}
+        <a class="btn-primary" href="{% url 'requests:material_request_edit' material_request.id %}">Editar rascunho</a>
+      {% endif %}
       <a class="btn-secondary" href="{% url 'requests:material_request_list' %}">Voltar</a>
     </div>
   </header>

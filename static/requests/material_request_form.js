@@ -73,9 +73,39 @@
     return form?.dataset.apiUrl || "/api/solicitacoes-materiais/";
   }
 
+  function getFormMode() {
+    const form = getFormElement();
+    return form?.dataset.formMode || "create";
+  }
+
+  function getRequestId() {
+    const form = getFormElement();
+    return form?.dataset.requestId || "";
+  }
+
+  function getInitialRequestData() {
+    const node = document.getElementById("material-request-initial-data");
+    if (!node?.textContent) return null;
+    try {
+      return JSON.parse(node.textContent);
+    } catch (_error) {
+      return null;
+    }
+  }
+
   function getListUrl() {
     const form = getFormElement();
     return form?.dataset.listUrl || "/solicitacoes/minhas/";
+  }
+
+  function getCreateUrl() {
+    const form = getFormElement();
+    return form?.dataset.createUrl || "/solicitacoes/nova/";
+  }
+
+  function getUserDepartment() {
+    const form = getFormElement();
+    return form?.dataset.userDepartment || "";
   }
 
   function getFormsetElements() {
@@ -311,6 +341,35 @@
     setupMaterialAutocomplete(elements.itemsList.lastElementChild, materialSearchUrl);
   }
 
+  function resetItemsList(elements) {
+    elements.itemsList.innerHTML = "";
+    elements.totalFormsInput.value = "0";
+  }
+
+  function addExistingItemForm(elements, materialSearchUrl, item) {
+    createNewItemForm(elements, materialSearchUrl);
+    const itemForm = elements.itemsList.lastElementChild;
+    const hiddenField = itemForm.querySelector(".material-id-field");
+    const displayField = itemForm.querySelector(".material-display-field");
+    const quantityField = itemForm.querySelector('input[name$="-requested_quantity"]');
+    const notesField = itemForm.querySelector('input[name$="-notes"], textarea[name$="-notes"]');
+    const material = {
+      id: item.material,
+      sku: item.material_sku,
+      name: item.material_name,
+      unit: item.unit,
+      available_quantity: item.available_quantity || "",
+    };
+
+    if (displayField) {
+      displayField._materialsByLabel = displayField._materialsByLabel || new Map();
+      displayField._materialsByLabel.set(buildOptionLabel(material), material);
+      applySelectedMaterial(displayField, hiddenField, material);
+    }
+    if (quantityField) quantityField.value = item.requested_quantity || "";
+    if (notesField) notesField.value = item.notes || "";
+  }
+
   function hasTrailingEmptyForm(elements) {
     const forms = elements.itemsList.querySelectorAll(".issue-item-form");
     if (!forms.length) return false;
@@ -420,6 +479,62 @@
     return csrfInput ? csrfInput.value : "";
   }
 
+  function populateExistingRequest(payload, materialSearchUrl) {
+    const form = getFormElement();
+    const elements = getFormsetElements();
+    if (!form || !elements || !payload) return;
+
+    const notesField = form.querySelector('[name="notes"]');
+    const requesterNameField = form.querySelector('[name="requester_name"]');
+    const requesterDepartmentField = form.querySelector('[name="requester_department"]');
+    const ownWarehouseRequestField = form.querySelector('[name="is_own_warehouse_request"]');
+
+    if (notesField) notesField.value = payload.notes || "";
+    if (requesterNameField) requesterNameField.value = payload.requester_name || "";
+    if (requesterDepartmentField) requesterDepartmentField.value = payload.requester_department || "";
+    if (ownWarehouseRequestField && requesterDepartmentField) {
+      ownWarehouseRequestField.checked = requesterDepartmentField.value.trim() === getUserDepartment();
+    }
+
+    resetItemsList(elements);
+    (payload.items || []).forEach(function (item) {
+      addExistingItemForm(elements, materialSearchUrl, item);
+    });
+    ensureOneEmptyItemForm(materialSearchUrl);
+    form.dispatchEvent(new CustomEvent("material-request:loaded"));
+  }
+
+  async function loadExistingRequest(materialSearchUrl) {
+    const requestId = getRequestId();
+    if (!requestId) return;
+
+    const initialData = getInitialRequestData();
+    if (initialData) {
+      populateExistingRequest(initialData, materialSearchUrl);
+      return;
+    }
+
+    setRequestStatus("Carregando rascunho...", true);
+    try {
+      const response = await fetch(`${getApiUrl()}${requestId}/`, {
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+      if (!response.ok) {
+        setRequestStatus("Não foi possível carregar o rascunho.", false);
+        return;
+      }
+
+      const payload = await response.json();
+      populateExistingRequest(payload, materialSearchUrl);
+      setRequestStatus("", false);
+    } catch (_error) {
+      setRequestStatus("Não foi possível carregar o rascunho.", false);
+    }
+  }
+
   function renderSuccess(materialRequestId, wasSubmitted, finalStatus) {
     const form = getFormElement();
     if (!form) return;
@@ -435,7 +550,7 @@
         <div class="success-links">
           <a href="${listUrl}">Ver minhas solicitações</a>
           <span>-</span>
-          <a href="${window.location.pathname}">Criar nova solicitação</a>
+          <a href="${getCreateUrl()}">Criar nova solicitação</a>
         </div>
       </div>
     `;
@@ -462,6 +577,8 @@
     if (!isOwnWarehouseRequest && requesterName) payload.requester_name = requesterName;
     if (!isOwnWarehouseRequest && requesterDepartment) payload.requester_department = requesterDepartment;
     const shouldSubmitNow = Boolean(form.querySelector('[name="submit_now"]')?.checked);
+    const requestId = getRequestId();
+    const isEditMode = getFormMode() === "edit" && Boolean(requestId);
 
     form.classList.add("is-submitting");
     setRequestStatus("Salvando solicitação, aguarde...", true);
@@ -469,8 +586,8 @@
     clearFieldInvalidState(form);
 
     try {
-      const createResponse = await fetch(getApiUrl(), {
-        method: "POST",
+      const response = await fetch(isEditMode ? `${getApiUrl()}${requestId}/` : getApiUrl(), {
+        method: isEditMode ? "PATCH" : "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
@@ -480,8 +597,8 @@
         body: JSON.stringify(payload),
       });
 
-      if (!createResponse.ok) {
-        const errors = await createResponse.json().catch(function () {
+      if (!response.ok) {
+        const errors = await response.json().catch(function () {
           return {};
         });
         setClientValidationAlert(
@@ -493,7 +610,7 @@
         return;
       }
 
-      const created = await createResponse.json();
+      const created = await response.json();
       let finalStatus = created.status;
       if (shouldSubmitNow) {
         setRequestStatus("Enviando para aprovação...", true);
@@ -562,9 +679,14 @@
 
     form.addEventListener("submit", submitMaterialRequest);
     setupMaterialAutocomplete(document, materialSearchUrl);
-    ensureOneEmptyItemForm(materialSearchUrl);
+    if (getFormMode() === "edit" && getRequestId()) {
+      loadExistingRequest(materialSearchUrl);
+    } else {
+      ensureOneEmptyItemForm(materialSearchUrl);
+    }
     if (ownWarehouseRequestField) {
       ownWarehouseRequestField.addEventListener("change", syncWarehouseRequestMode);
+      form.addEventListener("material-request:loaded", syncWarehouseRequestMode);
       syncWarehouseRequestMode();
     }
 

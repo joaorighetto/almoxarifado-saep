@@ -1,12 +1,18 @@
 {% extends "requests/base.html" %}
 {% load static %}
 
-{% block title %}Nova Solicitação{% endblock %}
+{% block title %}{% if form_mode == "edit" %}Editar Solicitação{% else %}Nova Solicitação{% endif %}{% endblock %}
 
 {% block content %}
   <header class="page-header">
     <div>
-      <h1 class="page-title">Nova Solicitação de Materiais</h1>
+      <h1 class="page-title">
+        {% if form_mode == "edit" %}
+          Editar Solicitação de Materiais
+        {% else %}
+          Nova Solicitação de Materiais
+        {% endif %}
+      </h1>
       <p class="page-subtitle">
         {% if is_section_chief %}
           Monte a lista para sua seção. Solicitações criadas pela chefia entram automaticamente como aprovadas.
@@ -29,6 +35,10 @@
     data-material-search-url="/api/materiais/search/"
     data-api-url="/api/solicitacoes-materiais/"
     data-list-url="{% url 'requests:material_request_list' %}"
+    data-create-url="{% url 'requests:material_request_create' %}"
+    data-user-department="{{ user_department|default:'' }}"
+    data-form-mode="{{ form_mode|default:'create' }}"
+    {% if material_request %}data-request-id="{{ material_request.id }}"{% endif %}
   >
     {% csrf_token %}
     <div id="client-validation-alert" class="form-alert" role="alert" hidden></div>
@@ -156,6 +166,9 @@
     </div>
   </form>
   <div id="form-request-status" class="form-request-status" hidden aria-live="polite"></div>
+  {% if initial_material_request_data %}
+    {{ initial_material_request_data|json_script:"material-request-initial-data" }}
+  {% endif %}
 {% endblock %}
 
 {% block extra_scripts %}

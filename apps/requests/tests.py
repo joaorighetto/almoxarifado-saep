@@ -1005,6 +1005,59 @@ def test_material_request_create_page_shows_auto_approval_message_for_section_ch
     assert "Solicitações criadas pela chefia entram automaticamente como aprovadas." in content
 
 
+def test_material_request_edit_page_renders_for_owner_draft(client):
+    requester = _create_user_with_department("edit_web_1", "ETA Edit")
+    material_request = MaterialRequest.objects.create(
+        requested_by=requester,
+        requester_name=requester.username,
+        requester_department="ETA Edit",
+        status=MaterialRequest.Status.DRAFT,
+        notes="Rascunho inicial",
+    )
+    client.force_login(requester)
+
+    response = client.get(
+        reverse("requests:material_request_edit", kwargs={"pk": material_request.id})
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert 'data-form-mode="edit"' in content
+    assert f'data-request-id="{material_request.id}"' in content
+    assert "Editar Solicitação de Materiais" in content
+
+
+def test_material_request_edit_page_forbidden_for_non_owner_or_non_draft(client):
+    owner = _create_user_with_department("edit_web_2", "ETA Edit")
+    other_user = _create_user_with_department("edit_web_3", "ETA Edit")
+    material_request = MaterialRequest.objects.create(
+        requested_by=owner,
+        requester_name=owner.username,
+        requester_department="ETA Edit",
+        status=MaterialRequest.Status.DRAFT,
+    )
+    submitted_request = MaterialRequest.objects.create(
+        requested_by=owner,
+        requester_name=owner.username,
+        requester_department="ETA Edit",
+        status=MaterialRequest.Status.SUBMITTED,
+        submitted_at=timezone.now(),
+    )
+
+    client.force_login(other_user)
+    response_other = client.get(
+        reverse("requests:material_request_edit", kwargs={"pk": material_request.id})
+    )
+
+    client.force_login(owner)
+    response_submitted = client.get(
+        reverse("requests:material_request_edit", kwargs={"pk": submitted_request.id})
+    )
+
+    assert response_other.status_code == 404
+    assert response_submitted.status_code == 403
+
+
 def test_material_request_list_shows_only_authenticated_user_requests(client):
     requester_a = _create_user_with_department("solicitante_web_2", "ETA A")
     requester_b = _create_user_with_department("solicitante_web_3", "ETA B")
@@ -1030,6 +1083,7 @@ def test_material_request_list_shows_only_authenticated_user_requests(client):
     content = response.content.decode("utf-8")
     assert f"#{req_a.id}" in content
     assert f"#{req_b.id}" not in content
+    assert reverse("requests:material_request_edit", kwargs={"pk": req_a.id}) in content
 
 
 def test_notifications_page_lists_user_notifications(client):
@@ -1099,6 +1153,25 @@ def test_material_request_detail_shows_timeline_for_authorized_user(client):
     content = response.content.decode("utf-8")
     assert "Timeline" in content
     assert "Criação inicial" in content
+
+
+def test_material_request_detail_shows_edit_link_for_owner_draft(client):
+    requester = _create_user_with_department("detail_user_2", "ETA D2")
+    material_request = MaterialRequest.objects.create(
+        requested_by=requester,
+        requester_name=requester.username,
+        requester_department="ETA D2",
+        status=MaterialRequest.Status.DRAFT,
+    )
+    client.force_login(requester)
+
+    response = client.get(
+        reverse("requests:material_request_detail", kwargs={"pk": material_request.id})
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert reverse("requests:material_request_edit", kwargs={"pk": material_request.id}) in content
 
 
 def test_login_redirects_requester_to_material_request_create(client):

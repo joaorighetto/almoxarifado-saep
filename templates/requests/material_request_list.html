@@ -23,6 +23,7 @@
             <th>Itens</th>
             <th>Criada em</th>
             <th>Observações</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -39,10 +40,18 @@
               <td>{{ request_obj.items.count }}</td>
               <td>{{ request_obj.created_at|date:"d/m/Y H:i" }}</td>
               <td>{{ request_obj.notes|default:"-" }}</td>
+              <td>
+                <div class="actions-inline">
+                  <a class="btn-secondary btn-compact" href="{% url 'requests:material_request_detail' request_obj.id %}">Detalhes</a>
+                  {% if request_obj.status == "draft" %}
+                    <a class="btn-primary btn-compact" href="{% url 'requests:material_request_edit' request_obj.id %}">Editar</a>
+                  {% endif %}
+                </div>
+              </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="5" class="muted-text">Você ainda não criou solicitações.</td>
+              <td colspan="6" class="muted-text">Você ainda não criou solicitações.</td>
             </tr>
           {% endfor %}
         </tbody>
