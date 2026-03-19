@@ -27,7 +27,7 @@ ALMOX_PASSWORD ?= almox123
 
 .PHONY: help venv install bootstrap dev qa \
 	migrate makemigrations run run-prod shell dbshell collectstatic \
-	lint format check test test-requests test-material-search \
+	lint format format-check check test test-requests test-material-search \
 	import-materials seed-request-users \
 	verify-spreadsheet-check verify-spreadsheet-repair verify-spreadsheet-repair-no-sync
 
@@ -68,12 +68,16 @@ dbshell: ## Abre shell do banco de dados
 collectstatic: ## Coleta arquivos estáticos
 	$(MANAGE) collectstatic --noinput
 
-lint: ## Roda Ruff (apenas checagem)
+lint: ## Roda Ruff e Black em modo checagem
 	$(RUFF) check .
+	$(BLACK) --check .
 
-format: ## Formata com Black e corrige lint automático com Ruff
-	$(BLACK) .
+format: ## Corrige lint automático com Ruff e formata com Black
 	$(RUFF) check . --fix
+	$(BLACK) .
+
+format-check: ## Verifica apenas formatação do Black
+	$(BLACK) --check .
 
 check: ## Executa django system checks
 	$(MANAGE) check

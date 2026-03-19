@@ -59,11 +59,15 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(self.style.SUCCESS("Usuários provisionados com sucesso:"))
-        self.stdout.write(f"- solicitante: {requester.username} / {options['solicitante_password']}")
+        self.stdout.write(
+            f"- solicitante: {requester.username} / {options['solicitante_password']}"
+        )
         self.stdout.write(f"- chefe_secao: {chief.username} / {options['chefe_password']}")
         self.stdout.write(f"- almoxarifado: {warehouse.username} / {options['almox_password']}")
 
-    def _upsert_user(self, user_model, username: str, raw_password: str, department: str, group_names: list[str]):
+    def _upsert_user(
+        self, user_model, username: str, raw_password: str, department: str, group_names: list[str]
+    ):
         username = str(username).strip()
         if not username:
             raise ValueError("Username não pode ser vazio.")

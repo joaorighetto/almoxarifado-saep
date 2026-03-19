@@ -12,8 +12,9 @@ from rest_framework.response import Response
 
 from apps.accounts.models import Profile
 
-from .models import IssueItem, IssueRequest
 from .models import (
+    IssueItem,
+    IssueRequest,
     MaterialRequest,
     MaterialRequestEvent,
     MaterialRequestItem,
@@ -144,6 +145,18 @@ def _user_department(user) -> str:
 
 
 def _is_section_chief(user, department: str) -> bool:
+    """
+    Determine if a user is a section chief of a specific department.
+
+    Args:
+        user: The user object to check authentication and group membership.
+        department (str): The department identifier to validate against the user's department.
+
+    Returns:
+        bool: True if the user is authenticated, belongs to the 'chefe_secao' group,
+              and their department matches the provided department parameter.
+              False otherwise.
+    """
     if not user.is_authenticated:
         return False
     if not user.groups.filter(name="chefe_secao").exists():
@@ -513,7 +526,10 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
             )
             return Response(self.get_serializer(material_request).data)
 
-        chiefs = [profile.user for profile in _section_chiefs_for_department(material_request.requester_department)]
+        chiefs = [
+            profile.user
+            for profile in _section_chiefs_for_department(material_request.requester_department)
+        ]
         _notify_users(
             chiefs,
             material_request=material_request,
@@ -541,9 +557,7 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
         material_request.status = MaterialRequest.Status.APPROVED
         material_request.approved_at = timezone.now()
         material_request.approved_by = request.user
-        material_request.save(
-            update_fields=["status", "approved_at", "approved_by", "updated_at"]
-        )
+        material_request.save(update_fields=["status", "approved_at", "approved_by", "updated_at"])
         _create_material_request_event(
             material_request,
             MaterialRequestEvent.EventType.APPROVED,
@@ -645,7 +659,8 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
             )
 
         issue = IssueRequest.objects.create(
-            requested_by_name=material_request.requester_name or material_request.requested_by.username,
+            requested_by_name=material_request.requester_name
+            or material_request.requested_by.username,
             destination=(material_request.requester_department or "Sem departamento").strip(),
             document_ref=f"SOL-{material_request.id}",
             issued_at=timezone.now(),

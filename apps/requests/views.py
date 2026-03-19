@@ -81,7 +81,9 @@ def material_request_list(request):
         .prefetch_related("items__material")
         .order_by("-created_at", "-id")
     )
-    return render(request, "requests/material_request_list.html", {"material_requests": requests_qs})
+    return render(
+        request, "requests/material_request_list.html", {"material_requests": requests_qs}
+    )
 
 
 @login_required
@@ -152,10 +154,7 @@ def issue_list(request):
     if not request.user.groups.filter(name="almoxarifado").exists():
         raise PermissionDenied("Apenas almoxarifado pode acessar esta página.")
 
-    issues = (
-        IssueRequest.objects.prefetch_related("items__material")
-        .order_by("-issued_at", "-id")
-    )
+    issues = IssueRequest.objects.prefetch_related("items__material").order_by("-issued_at", "-id")
     return render(request, "requests/issue_list.html", {"issues": issues})
 
 
@@ -188,7 +187,11 @@ def _can_view_material_request(user, material_request: MaterialRequest) -> bool:
     profile = Profile.objects.filter(user=user).only("department").first()
     user_department = (profile.department if profile else "").strip()
 
-    if user.groups.filter(name="chefe_secao").exists() and department and department == user_department:
+    if (
+        user.groups.filter(name="chefe_secao").exists()
+        and department
+        and department == user_department
+    ):
         return True
     if user.groups.filter(name="almoxarifado").exists():
         return True
@@ -230,9 +233,7 @@ def notifications_list(request):
             return redirect("requests:notifications_list")
 
         notification_id = request.POST.get("notification_id")
-        notification = get_object_or_404(
-            RequestNotification, pk=notification_id, user=request.user
-        )
+        notification = get_object_or_404(RequestNotification, pk=notification_id, user=request.user)
         if not notification.is_read:
             notification.is_read = True
             notification.read_at = timezone.now()

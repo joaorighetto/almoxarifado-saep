@@ -3,8 +3,8 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
-from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.urls import reverse
@@ -257,13 +257,17 @@ def test_submit_material_request_changes_status_to_submitted():
     client = APIClient()
     client.force_authenticate(user=requester)
 
-    response = client.post(f"{API_MATERIAL_REQUEST_URL}{material_request.id}/submit/", format="json")
+    response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/submit/", format="json"
+    )
 
     assert response.status_code == 200
     material_request.refresh_from_db()
     assert material_request.status == MaterialRequest.Status.SUBMITTED
     assert material_request.submitted_at is not None
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.SUBMITTED).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.SUBMITTED
+    ).exists()
 
 
 def test_section_chief_request_is_auto_approved_on_submit():
@@ -297,8 +301,12 @@ def test_section_chief_request_is_auto_approved_on_submit():
     assert material_request.submitted_at is not None
     assert material_request.approved_at is not None
     assert material_request.approved_by_id == chief.id
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.SUBMITTED).exists()
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.APPROVED).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.SUBMITTED
+    ).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.APPROVED
+    ).exists()
 
 
 def test_submitted_request_created_by_warehouse_appears_in_chief_pending_queue():
@@ -372,8 +380,12 @@ def test_warehouse_self_request_is_auto_approved_on_submit():
     assert material_request.submitted_at is not None
     assert material_request.approved_at is not None
     assert material_request.approved_by_id == warehouse_user.id
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.SUBMITTED).exists()
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.APPROVED).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.SUBMITTED
+    ).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.APPROVED
+    ).exists()
 
 
 def test_only_requester_created_requests_appear_in_pending_approval_queue():
@@ -439,14 +451,18 @@ def test_section_chief_can_approve_submitted_request_from_same_department():
     client = APIClient()
     client.force_authenticate(user=chief)
 
-    response = client.post(f"{API_MATERIAL_REQUEST_URL}{material_request.id}/approve/", format="json")
+    response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/approve/", format="json"
+    )
 
     assert response.status_code == 200
     material_request.refresh_from_db()
     assert material_request.status == MaterialRequest.Status.APPROVED
     assert material_request.approved_by_id == chief.id
     assert material_request.approved_at is not None
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.APPROVED).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.APPROVED
+    ).exists()
     assert RequestNotification.objects.filter(
         user=requester,
         material_request=material_request,
@@ -469,7 +485,9 @@ def test_section_chief_cannot_approve_from_other_department():
     client = APIClient()
     client.force_authenticate(user=chief)
 
-    response = client.post(f"{API_MATERIAL_REQUEST_URL}{material_request.id}/approve/", format="json")
+    response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/approve/", format="json"
+    )
 
     assert response.status_code == 403
     material_request.refresh_from_db()
@@ -525,7 +543,9 @@ def test_reject_material_request_creates_notification_for_requester():
     assert response.status_code == 200
     material_request.refresh_from_db()
     assert material_request.status == MaterialRequest.Status.REJECTED
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.REJECTED).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.REJECTED
+    ).exists()
     assert RequestNotification.objects.filter(
         user=requester,
         material_request=material_request,
@@ -547,7 +567,7 @@ def test_pending_approval_lists_only_requests_from_chief_department():
         status=MaterialRequest.Status.SUBMITTED,
         submitted_at=timezone.now(),
     )
-    req_b = MaterialRequest.objects.create(
+    MaterialRequest.objects.create(
         requested_by=requester_b,
         requester_name=requester_b.username,
         requester_department="ETA B",
@@ -638,7 +658,9 @@ def test_warehouse_can_fulfill_approved_request_and_generate_issue(tmp_path, set
 
     client = APIClient()
     client.force_authenticate(user=warehouse_user)
-    response = client.post(f"{API_MATERIAL_REQUEST_URL}{material_request.id}/fulfill/", format="json")
+    response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/fulfill/", format="json"
+    )
 
     assert response.status_code == 200
     material_request.refresh_from_db()
@@ -646,7 +668,9 @@ def test_warehouse_can_fulfill_approved_request_and_generate_issue(tmp_path, set
     assert material_request.fulfilled_by_id == warehouse_user.id
     assert material_request.fulfilled_at is not None
     assert material_request.issue_id is not None
-    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.FULFILLED).exists()
+    assert material_request.events.filter(
+        event_type=MaterialRequestEvent.EventType.FULFILLED
+    ).exists()
     assert RequestNotification.objects.filter(
         user=requester,
         material_request=material_request,
@@ -702,7 +726,9 @@ def test_fulfill_rolls_back_when_xlsx_export_fails(tmp_path, settings, monkeypat
 
     client = APIClient()
     client.force_authenticate(user=warehouse_user)
-    response = client.post(f"{API_MATERIAL_REQUEST_URL}{material_request.id}/fulfill/", format="json")
+    response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/fulfill/", format="json"
+    )
 
     assert response.status_code == 400
     assert "non_field_errors" in response.data
@@ -792,6 +818,7 @@ def test_warehouse_approved_queue_lists_only_approved_requests(client):
     assert f"#{req_submitted.id}" not in content
     assert "js-fulfill-request" in content
     assert "Fila de Solicitações" in content
+
 
 def test_create_issue_request_via_api_rejects_when_stock_is_insufficient(tmp_path, settings):
     settings.EXPORT_DIR = tmp_path
@@ -1072,6 +1099,7 @@ def test_material_request_detail_shows_timeline_for_authorized_user(client):
     content = response.content.decode("utf-8")
     assert "Timeline" in content
     assert "Criação inicial" in content
+
 
 def test_login_redirects_requester_to_material_request_create(client):
     user = _create_user_with_department("login_solicitante", "ETA Login")

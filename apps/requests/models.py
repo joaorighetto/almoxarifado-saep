@@ -66,7 +66,9 @@ class MaterialRequest(AuditedModel):
     )
     requester_name = models.CharField(max_length=160, blank=True, default="")
     requester_department = models.CharField(max_length=120, blank=True, default="")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT, db_index=True
+    )
     notes = models.TextField(blank=True, default="")
 
     submitted_at = models.DateTimeField(null=True, blank=True)
@@ -126,31 +128,45 @@ class MaterialRequest(AuditedModel):
             if not self.approved_by:
                 raise ValidationError({"approved_by": "Solicitação aprovada precisa de aprovador."})
             if not self.approved_at:
-                raise ValidationError({"approved_at": "Solicitação aprovada precisa de data de aprovação."})
+                raise ValidationError(
+                    {"approved_at": "Solicitação aprovada precisa de data de aprovação."}
+                )
 
         if self.status == self.Status.REJECTED:
             if not self.rejected_by:
-                raise ValidationError({"rejected_by": "Solicitação rejeitada precisa de responsável."})
-            if not self.rejected_at:
-                raise ValidationError({"rejected_at": "Solicitação rejeitada precisa de data de rejeição."})
-            if not self.rejection_reason.strip():
                 raise ValidationError(
-                    {"rejection_reason": "Motivo da rejeição é obrigatório."}
+                    {"rejected_by": "Solicitação rejeitada precisa de responsável."}
                 )
+            if not self.rejected_at:
+                raise ValidationError(
+                    {"rejected_at": "Solicitação rejeitada precisa de data de rejeição."}
+                )
+            if not self.rejection_reason.strip():
+                raise ValidationError({"rejection_reason": "Motivo da rejeição é obrigatório."})
 
         if self.status == self.Status.FULFILLED:
             if not self.fulfilled_by:
-                raise ValidationError({"fulfilled_by": "Solicitação atendida precisa de responsável."})
+                raise ValidationError(
+                    {"fulfilled_by": "Solicitação atendida precisa de responsável."}
+                )
             if not self.fulfilled_at:
-                raise ValidationError({"fulfilled_at": "Solicitação atendida precisa de data de atendimento."})
+                raise ValidationError(
+                    {"fulfilled_at": "Solicitação atendida precisa de data de atendimento."}
+                )
             if not self.issue_id:
-                raise ValidationError({"issue": "Solicitação atendida precisa estar vinculada a uma saída."})
+                raise ValidationError(
+                    {"issue": "Solicitação atendida precisa estar vinculada a uma saída."}
+                )
 
         if self.status == self.Status.CANCELED:
             if not self.canceled_by:
-                raise ValidationError({"canceled_by": "Solicitação cancelada precisa de responsável."})
+                raise ValidationError(
+                    {"canceled_by": "Solicitação cancelada precisa de responsável."}
+                )
             if not self.canceled_at:
-                raise ValidationError({"canceled_at": "Solicitação cancelada precisa de data de cancelamento."})
+                raise ValidationError(
+                    {"canceled_at": "Solicitação cancelada precisa de data de cancelamento."}
+                )
             if not self.cancellation_reason.strip():
                 raise ValidationError(
                     {"cancellation_reason": "Motivo do cancelamento é obrigatório."}
