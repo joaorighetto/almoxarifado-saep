@@ -155,6 +155,28 @@ def _is_warehouse_user(user) -> bool:
     return bool(user and user.is_authenticated and user.groups.filter(name="almoxarifado").exists())
 
 
+def _should_auto_approve_request(user, material_request: MaterialRequest) -> bool:
+    requester_department = (material_request.requester_department or "").strip()
+    if _is_warehouse_user(user) or user.groups.filter(name="chefe_secao").exists():
+        return requester_department == _user_department(user)
+    return False
+
+
+def _requester_identity_for_creation(
+    user,
+    *,
+    requester_name: str = "",
+    requester_department: str = "",
+) -> tuple[str, str]:
+    default_name = (user.get_full_name() or user.username or "").strip()
+    default_department = _user_department(user)
+
+    if _is_warehouse_user(user):
+        return requester_name or default_name, requester_department or default_department
+
+    return default_name, default_department
+
+
 def _create_material_request_event(
     material_request: MaterialRequest,
     event_type: str,
@@ -275,8 +297,6 @@ class MaterialRequestSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "requested_by",
             "requested_by_username",
-            "requester_name",
-            "requester_department",
             "status",
             "submitted_at",
             "approved_at",
@@ -293,6 +313,28 @@ class MaterialRequestSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        request = self.context["request"]
+        if request.method != "POST" or not _is_warehouse_user(request.user):
+            return attrs
+
+        requester_name = str(attrs.get("requester_name", "")).strip()
+        requester_department = str(attrs.get("requester_department", "")).strip()
+        if requester_name:
+            attrs["requester_name"] = requester_name
+        if requester_department:
+            attrs["requester_department"] = requester_department
+        if bool(requester_name) != bool(requester_department):
+            raise serializers.ValidationError(
+                {
+                    "requester_department": [
+                        "Informe solicitante e departamento para solicitações de outras seções."
+                    ]
+                }
+            )
+        return attrs
 
     def validate_items(self, value):
         seen_material_ids = set()
@@ -312,11 +354,18 @@ class MaterialRequestSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         user = request.user
         items_data = validated_data.pop("items", [])
+        requester_name = str(validated_data.pop("requester_name", "")).strip()
+        requester_department = str(validated_data.pop("requester_department", "")).strip()
+        requester_name, requester_department = _requester_identity_for_creation(
+            user,
+            requester_name=requester_name,
+            requester_department=requester_department,
+        )
 
         material_request = MaterialRequest.objects.create(
             requested_by=user,
-            requester_name=(user.get_full_name() or user.username or "").strip(),
-            requester_department=_user_department(user),
+            requester_name=requester_name,
+            requester_department=requester_department,
             **validated_data,
         )
         if items_data:
@@ -438,14 +487,32 @@ class MaterialRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        submitted_at = timezone.now()
+        update_fields = ["status", "submitted_at", "updated_at"]
         material_request.status = MaterialRequest.Status.SUBMITTED
-        material_request.submitted_at = timezone.now()
-        material_request.save(update_fields=["status", "submitted_at", "updated_at"])
+        material_request.submitted_at = submitted_at
+
+        if _should_auto_approve_request(request.user, material_request):
+            material_request.status = MaterialRequest.Status.APPROVED
+            material_request.approved_at = submitted_at
+            material_request.approved_by = request.user
+            update_fields.extend(["approved_at", "approved_by"])
+
+        material_request.save(update_fields=update_fields)
         _create_material_request_event(
             material_request,
             MaterialRequestEvent.EventType.SUBMITTED,
             performed_by=request.user,
         )
+        if material_request.status == MaterialRequest.Status.APPROVED:
+            _create_material_request_event(
+                material_request,
+                MaterialRequestEvent.EventType.APPROVED,
+                performed_by=request.user,
+                notes="Autoaprovada por solicitação interna do próprio setor.",
+            )
+            return Response(self.get_serializer(material_request).data)
+
         chiefs = [profile.user for profile in _section_chiefs_for_department(material_request.requester_department)]
         _notify_users(
             chiefs,

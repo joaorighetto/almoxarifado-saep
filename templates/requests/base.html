@@ -18,11 +18,25 @@
     {% if user.is_authenticated %}
       <header class="topbar">
         <div class="topbar-inner">
-          <span class="topbar-user">Conectado como {{ user.username }}</span>
+          <div class="topbar-left">
+            <span class="topbar-user">Conectado como {{ user.username }}</span>
+            {% with current_url=request.resolver_match.url_name %}
+            <nav class="topbar-nav" aria-label="Navegação principal">
+              <a class="topbar-link {% if current_url == 'material_request_create' %}is-active{% endif %}" href="{% url 'requests:material_request_create' %}">Nova solicitação</a>
+              <a class="topbar-link {% if current_url == 'material_request_list' %}is-active{% endif %}" href="{% url 'requests:material_request_list' %}">Minhas solicitações</a>
+              {% if is_section_chief %}
+                <a class="topbar-link {% if current_url == 'chief_pending_approvals' %}is-active{% endif %}" href="{% url 'requests:chief_pending_approvals' %}">Pendentes da chefia</a>
+                <a class="topbar-link {% if current_url == 'chief_request_history' %}is-active{% endif %}" href="{% url 'requests:chief_request_history' %}">Histórico da seção</a>
+              {% endif %}
+              {% if is_warehouse_user %}
+                <a class="topbar-link {% if current_url == 'warehouse_approved_queue' %}is-active{% endif %}" href="{% url 'requests:warehouse_approved_queue' %}">Fila de solicitações</a>
+                <a class="topbar-link {% if current_url == 'issue_list' %}is-active{% endif %}" href="{% url 'requests:issue_list' %}">Saídas</a>
+                <a class="topbar-link {% if current_url == 'warehouse_request_history' %}is-active{% endif %}" href="{% url 'requests:warehouse_request_history' %}">Histórico almoxarifado</a>
+              {% endif %}
+            </nav>
+            {% endwith %}
+          </div>
           <div class="topbar-actions">
-            {% if is_warehouse_user %}
-              <a class="btn-secondary btn-compact" href="{% url 'requests:issue_list' %}">Saídas</a>
-            {% endif %}
             <a
               class="btn-secondary btn-compact {% if unread_notifications_count %}btn-attention{% endif %}"
               href="{% url 'requests:notifications_list' %}"

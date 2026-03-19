@@ -7,7 +7,15 @@
   <header class="page-header">
     <div>
       <h1 class="page-title">Nova Solicitação de Materiais</h1>
-      <p class="page-subtitle">Monte a lista e envie para aprovação do chefe da sua seção.</p>
+      <p class="page-subtitle">
+        {% if is_section_chief %}
+          Monte a lista para sua seção. Solicitações criadas pela chefia entram automaticamente como aprovadas.
+        {% elif is_warehouse_user %}
+          Monte a lista para o almoxarifado ou para outra seção.
+        {% else %}
+          Monte a lista e envie para aprovação do chefe da sua seção.
+        {% endif %}
+      </p>
     </div>
     <div class="issue-actions issue-actions-tight">
       <a class="btn-secondary" href="{% url 'requests:material_request_list' %}">Minhas solicitações</a>
@@ -28,6 +36,27 @@
     <fieldset class="issue-section">
       <legend>Dados da solicitação</legend>
       <div class="issue-grid issue-grid-main">
+        {% if is_warehouse_user %}
+          <div class="form-field form-field-full">
+            <label class="checkbox-inline" for="id_is_own_warehouse_request">
+              <input id="id_is_own_warehouse_request" name="is_own_warehouse_request" type="checkbox" checked>
+              Solicitação para o próprio almoxarifado
+            </label>
+          </div>
+          <div class="form-field">
+            <label for="id_requester_name">Solicitante</label>
+            <input id="id_requester_name" class="input-control" name="requester_name" type="text" maxlength="160">
+          </div>
+          <div class="form-field">
+            <label for="id_requester_department">Departamento</label>
+            <input id="id_requester_department" class="input-control" name="requester_department" type="text" maxlength="120">
+          </div>
+          <div class="form-field form-field-full">
+            <p id="warehouse-request-help" class="field-help">
+              Marque para criar uma solicitação interna do almoxarifado, que será automaticamente aprovada ao enviar.
+            </p>
+          </div>
+        {% endif %}
         <div class="form-field form-field-full">
           <label for="id_notes">Observações</label>
           <textarea id="id_notes" class="input-control" name="notes" rows="3"></textarea>

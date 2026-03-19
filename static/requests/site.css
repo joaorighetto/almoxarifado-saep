@@ -53,6 +53,45 @@ body {
   font-weight: 600;
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d2e0db;
+  border-radius: 999px;
+  padding: 0.28rem 0.64rem;
+  text-decoration: none;
+  color: #255244;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: #f6fbf9;
+}
+
+.topbar-link:hover {
+  background: #edf7f2;
+  border-color: #bcd0c9;
+}
+
+.topbar-link.is-active {
+  color: #fff;
+  border-color: #0f6145;
+  background: linear-gradient(180deg, #157651, #0f6145);
+}
+
 .topbar-actions {
   display: inline-flex;
   align-items: center;
@@ -682,6 +721,25 @@ table.modern-table {
 @media (max-width: 860px) {
   .topbar-inner {
     min-height: 3.2rem;
+    padding: 0.45rem 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  .topbar-nav {
+    width: 100%;
+    gap: 0.4rem;
+  }
+
+  .topbar-link {
+    justify-content: center;
+    flex: 1 1 calc(50% - 0.4rem);
   }
 
   .issue-grid-main,
@@ -697,6 +755,15 @@ table.modern-table {
   .btn-primary,
   .btn-secondary {
     width: 100%;
+  }
+
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .topbar-actions .btn-secondary {
+    width: auto;
+    flex: 1 1 auto;
   }
 
   .quantity-with-unit {

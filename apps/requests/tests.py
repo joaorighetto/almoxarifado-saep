@@ -193,6 +193,53 @@ def test_create_material_request_draft_via_api_sets_requester_data():
     assert created.items.count() == 1
 
 
+def test_warehouse_can_create_material_request_for_another_department():
+    warehouse_user = _create_user_with_department("almox_create_req", "ALMOX")
+    warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
+    warehouse_user.groups.add(warehouse_group)
+    material = Material.objects.create(sku="MR-001B", name="Botina", unit="par")
+    client = APIClient()
+    client.force_authenticate(user=warehouse_user)
+
+    payload = {
+        "requester_name": "Equipe ETA Sul",
+        "requester_department": "ETA Sul",
+        "notes": "Solicitação aberta no balcão do almoxarifado",
+        "items": [{"material": material.id, "requested_quantity": "2.000", "notes": ""}],
+    }
+    response = client.post(API_MATERIAL_REQUEST_URL, payload, format="json")
+
+    assert response.status_code == 201
+    created = MaterialRequest.objects.get(pk=response.data["id"])
+    assert created.requested_by_id == warehouse_user.id
+    assert created.requester_name == "Equipe ETA Sul"
+    assert created.requester_department == "ETA Sul"
+
+
+def test_warehouse_can_create_material_request_for_itself_without_requester_fields():
+    warehouse_user = _create_user_with_department("almox_self_req", "ALMOX")
+    warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
+    warehouse_user.groups.add(warehouse_group)
+    material = Material.objects.create(sku="MR-001C", name="Fita Zebrada", unit="un")
+    client = APIClient()
+    client.force_authenticate(user=warehouse_user)
+
+    response = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "notes": "Uso interno do almoxarifado",
+            "items": [{"material": material.id, "requested_quantity": "3.000", "notes": ""}],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    created = MaterialRequest.objects.get(pk=response.data["id"])
+    assert created.requested_by_id == warehouse_user.id
+    assert created.requester_name == warehouse_user.username
+    assert created.requester_department == "ALMOX"
+
+
 def test_submit_material_request_changes_status_to_submitted():
     requester = _create_user_with_department("solicitante_2", "ETA Sul")
     material = Material.objects.create(sku="MR-002", name="Capacete", unit="un")
@@ -217,6 +264,164 @@ def test_submit_material_request_changes_status_to_submitted():
     assert material_request.status == MaterialRequest.Status.SUBMITTED
     assert material_request.submitted_at is not None
     assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.SUBMITTED).exists()
+
+
+def test_section_chief_request_is_auto_approved_on_submit():
+    chief = _create_user_with_department("chefe_autoapprove", "ETA Sul")
+    chief_group, _ = Group.objects.get_or_create(name="chefe_secao")
+    chief.groups.add(chief_group)
+    material = Material.objects.create(sku="MR-002AA", name="Capa de Chuva", unit="un")
+    client = APIClient()
+    client.force_authenticate(user=chief)
+
+    create_response = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "notes": "Solicitação interna da seção",
+            "items": [{"material": material.id, "requested_quantity": "2.000", "notes": ""}],
+        },
+        format="json",
+    )
+
+    assert create_response.status_code == 201
+    material_request = MaterialRequest.objects.get(pk=create_response.data["id"])
+
+    submit_response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/submit/",
+        format="json",
+    )
+
+    assert submit_response.status_code == 200
+    material_request.refresh_from_db()
+    assert material_request.status == MaterialRequest.Status.APPROVED
+    assert material_request.submitted_at is not None
+    assert material_request.approved_at is not None
+    assert material_request.approved_by_id == chief.id
+    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.SUBMITTED).exists()
+    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.APPROVED).exists()
+
+
+def test_submitted_request_created_by_warehouse_appears_in_chief_pending_queue():
+    warehouse_user = _create_user_with_department("almox_submit_req", "ALMOX")
+    warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
+    warehouse_user.groups.add(warehouse_group)
+    chief = _create_user_with_department("chefe_fluxo_almox", "ETA Sul")
+    chief_group, _ = Group.objects.get_or_create(name="chefe_secao")
+    chief.groups.add(chief_group)
+    material = Material.objects.create(sku="MR-002B", name="Cone", unit="un")
+    client = APIClient()
+    client.force_authenticate(user=warehouse_user)
+
+    create_response = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "requester_name": "Solicitação balcão",
+            "requester_department": "ETA Sul",
+            "notes": "Criada pelo almoxarifado",
+            "items": [{"material": material.id, "requested_quantity": "4.000", "notes": ""}],
+        },
+        format="json",
+    )
+
+    assert create_response.status_code == 201
+    material_request_id = create_response.data["id"]
+
+    submit_response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request_id}/submit/",
+        format="json",
+    )
+
+    assert submit_response.status_code == 200
+
+    client.force_authenticate(user=chief)
+    pending_response = client.get(f"{API_MATERIAL_REQUEST_URL}pending_approval/")
+
+    assert pending_response.status_code == 200
+    ids = {item["id"] for item in pending_response.json()}
+    assert material_request_id in ids
+
+
+def test_warehouse_self_request_is_auto_approved_on_submit():
+    warehouse_user = _create_user_with_department("almox_autoapprove", "ALMOX")
+    warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
+    warehouse_user.groups.add(warehouse_group)
+    material = Material.objects.create(sku="MR-002C", name="Cadeado", unit="un")
+    client = APIClient()
+    client.force_authenticate(user=warehouse_user)
+
+    create_response = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "notes": "Reposição interna",
+            "items": [{"material": material.id, "requested_quantity": "1.000", "notes": ""}],
+        },
+        format="json",
+    )
+
+    assert create_response.status_code == 201
+    material_request = MaterialRequest.objects.get(pk=create_response.data["id"])
+
+    submit_response = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{material_request.id}/submit/",
+        format="json",
+    )
+
+    assert submit_response.status_code == 200
+    material_request.refresh_from_db()
+    assert material_request.status == MaterialRequest.Status.APPROVED
+    assert material_request.submitted_at is not None
+    assert material_request.approved_at is not None
+    assert material_request.approved_by_id == warehouse_user.id
+    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.SUBMITTED).exists()
+    assert material_request.events.filter(event_type=MaterialRequestEvent.EventType.APPROVED).exists()
+
+
+def test_only_requester_created_requests_appear_in_pending_approval_queue():
+    chief = _create_user_with_department("chefe_pending_only", "ETA Norte")
+    chief_group, _ = Group.objects.get_or_create(name="chefe_secao")
+    chief.groups.add(chief_group)
+    requester = _create_user_with_department("solicitante_pending_only", "ETA Norte")
+    material = Material.objects.create(sku="MR-002D", name="Abraçadeira", unit="un")
+    client = APIClient()
+
+    client.force_authenticate(user=requester)
+    requester_created = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "notes": "Solicitação do solicitante",
+            "items": [{"material": material.id, "requested_quantity": "5.000", "notes": ""}],
+        },
+        format="json",
+    )
+    assert requester_created.status_code == 201
+    requester_submit = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{requester_created.data['id']}/submit/",
+        format="json",
+    )
+    assert requester_submit.status_code == 200
+
+    client.force_authenticate(user=chief)
+    chief_created = client.post(
+        API_MATERIAL_REQUEST_URL,
+        {
+            "notes": "Solicitação da chefia",
+            "items": [{"material": material.id, "requested_quantity": "1.000", "notes": ""}],
+        },
+        format="json",
+    )
+    assert chief_created.status_code == 201
+    chief_submit = client.post(
+        f"{API_MATERIAL_REQUEST_URL}{chief_created.data['id']}/submit/",
+        format="json",
+    )
+    assert chief_submit.status_code == 200
+
+    pending_response = client.get(f"{API_MATERIAL_REQUEST_URL}pending_approval/")
+
+    assert pending_response.status_code == 200
+    ids = {item["id"] for item in pending_response.json()}
+    assert requester_created.data["id"] in ids
+    assert chief_created.data["id"] not in ids
 
 
 def test_section_chief_can_approve_submitted_request_from_same_department():
@@ -546,6 +751,7 @@ def test_issue_list_visible_for_warehouse_user(client):
     content = response.content.decode("utf-8")
     assert f"#{issue.id}" in content
     assert "Saídas de Materiais" in content
+    assert "Fila de solicitações" in content
 
 
 def test_warehouse_approved_queue_forbidden_for_non_warehouse_user(client):
@@ -585,6 +791,7 @@ def test_warehouse_approved_queue_lists_only_approved_requests(client):
     assert f"#{req_approved.id}" in content
     assert f"#{req_submitted.id}" not in content
     assert "js-fulfill-request" in content
+    assert "Fila de Solicitações" in content
 
 def test_create_issue_request_via_api_rejects_when_stock_is_insufficient(tmp_path, settings):
     settings.EXPORT_DIR = tmp_path
@@ -740,6 +947,35 @@ def test_material_request_create_page_renders_for_authenticated_user(client):
     assert 'id="material-request-form"' in content
     assert 'data-api-url="/api/solicitacoes-materiais/"' in content
     assert 'name="submit_now"' in content
+
+
+def test_material_request_create_page_shows_requester_fields_for_warehouse_user(client):
+    warehouse_user = _create_user_with_department("almox_web_form", "ALMOX")
+    warehouse_group, _ = Group.objects.get_or_create(name="almoxarifado")
+    warehouse_user.groups.add(warehouse_group)
+    client.force_login(warehouse_user)
+
+    response = client.get(reverse("requests:material_request_create"))
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert 'name="is_own_warehouse_request"' in content
+    assert 'name="requester_name"' in content
+    assert 'name="requester_department"' in content
+    assert "Solicitação para o próprio almoxarifado" in content
+
+
+def test_material_request_create_page_shows_auto_approval_message_for_section_chief(client):
+    chief = _create_user_with_department("chefe_web_form", "ETA Form")
+    chief_group, _ = Group.objects.get_or_create(name="chefe_secao")
+    chief.groups.add(chief_group)
+    client.force_login(chief)
+
+    response = client.get(reverse("requests:material_request_create"))
+
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert "Solicitações criadas pela chefia entram automaticamente como aprovadas." in content
 
 
 def test_material_request_list_shows_only_authenticated_user_requests(client):

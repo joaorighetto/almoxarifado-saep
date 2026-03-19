@@ -332,6 +332,27 @@
     setClientValidationAlert("");
     let valid = true;
 
+    const ownWarehouseRequestField = form.querySelector('[name="is_own_warehouse_request"]');
+    const requesterNameField = form.querySelector('[name="requester_name"]');
+    const requesterDepartmentField = form.querySelector('[name="requester_department"]');
+    const isOwnWarehouseRequest = Boolean(ownWarehouseRequestField?.checked);
+    const hasRequesterName = Boolean(requesterNameField?.value.trim());
+    const hasRequesterDepartment = Boolean(requesterDepartmentField?.value.trim());
+    if (
+      requesterNameField &&
+      requesterDepartmentField &&
+      !isOwnWarehouseRequest &&
+      hasRequesterName !== hasRequesterDepartment
+    ) {
+      valid = false;
+      if (!hasRequesterName) {
+        markFieldInvalid(requesterNameField, "Informe o nome do solicitante.");
+      }
+      if (!hasRequesterDepartment) {
+        markFieldInvalid(requesterDepartmentField, "Informe o departamento da solicitação.");
+      }
+    }
+
     const itemForms = form.querySelectorAll(".issue-item-form");
     const materialIds = new Set();
     let validItemCount = 0;
@@ -399,12 +420,14 @@
     return csrfInput ? csrfInput.value : "";
   }
 
-  function renderSuccess(materialRequestId, wasSubmitted) {
+  function renderSuccess(materialRequestId, wasSubmitted, finalStatus) {
     const form = getFormElement();
     if (!form) return;
     const listUrl = getListUrl();
     const summary = wasSubmitted
-      ? `Solicitação ${materialRequestId} enviada para aprovação.`
+      ? finalStatus === "approved"
+        ? `Solicitação ${materialRequestId} enviada e aprovada automaticamente.`
+        : `Solicitação ${materialRequestId} enviada para aprovação.`
       : `Solicitação ${materialRequestId} salva como rascunho.`;
     form.innerHTML = `
       <div class="success-box">
@@ -429,6 +452,15 @@
       notes: (form.querySelector('[name="notes"]')?.value || "").trim(),
       items: collectItems(form),
     };
+    const requesterName = (form.querySelector('[name="requester_name"]')?.value || "").trim();
+    const requesterDepartment = (
+      form.querySelector('[name="requester_department"]')?.value || ""
+    ).trim();
+    const isOwnWarehouseRequest = Boolean(
+      form.querySelector('[name="is_own_warehouse_request"]')?.checked
+    );
+    if (!isOwnWarehouseRequest && requesterName) payload.requester_name = requesterName;
+    if (!isOwnWarehouseRequest && requesterDepartment) payload.requester_department = requesterDepartment;
     const shouldSubmitNow = Boolean(form.querySelector('[name="submit_now"]')?.checked);
 
     form.classList.add("is-submitting");
@@ -462,6 +494,7 @@
       }
 
       const created = await createResponse.json();
+      let finalStatus = created.status;
       if (shouldSubmitNow) {
         setRequestStatus("Enviando para aprovação...", true);
         const submitResponse = await fetch(`${getApiUrl()}${created.id}/submit/`, {
@@ -484,9 +517,11 @@
           setRequestStatus("Solicitação salva em rascunho.", false);
           return;
         }
+        const submitted = await submitResponse.json();
+        finalStatus = submitted.status || finalStatus;
       }
 
-      renderSuccess(created.id, shouldSubmitNow);
+      renderSuccess(created.id, shouldSubmitNow, finalStatus);
     } catch (_error) {
       setRequestStatus("Erro ao processar a requisição. Tente novamente.", false);
     } finally {
@@ -498,10 +533,40 @@
     const form = getFormElement();
     if (!form) return;
     const materialSearchUrl = getMaterialSearchUrl();
+    const ownWarehouseRequestField = form.querySelector('[name="is_own_warehouse_request"]');
+    const requesterNameField = form.querySelector('[name="requester_name"]');
+    const requesterDepartmentField = form.querySelector('[name="requester_department"]');
+    const warehouseHelp = document.getElementById("warehouse-request-help");
+
+    function setWarehouseTargetFieldsHidden(isHidden) {
+      requesterNameField.closest(".form-field")?.toggleAttribute("hidden", isHidden);
+      requesterDepartmentField.closest(".form-field")?.toggleAttribute("hidden", isHidden);
+    }
+
+    function syncWarehouseRequestMode() {
+      if (!ownWarehouseRequestField || !requesterNameField || !requesterDepartmentField) return;
+      const isOwnRequest = ownWarehouseRequestField.checked;
+      requesterNameField.disabled = isOwnRequest;
+      requesterDepartmentField.disabled = isOwnRequest;
+      setWarehouseTargetFieldsHidden(isOwnRequest);
+      if (isOwnRequest) {
+        requesterNameField.value = "";
+        requesterDepartmentField.value = "";
+      }
+      if (warehouseHelp) {
+        warehouseHelp.textContent = isOwnRequest
+          ? "Marcada, a solicitação será criada para o próprio almoxarifado e aprovada automaticamente ao enviar."
+          : "Desmarque apenas para abrir solicitação em nome de outra seção. Nesse caso, informe solicitante e departamento.";
+      }
+    }
 
     form.addEventListener("submit", submitMaterialRequest);
     setupMaterialAutocomplete(document, materialSearchUrl);
     ensureOneEmptyItemForm(materialSearchUrl);
+    if (ownWarehouseRequestField) {
+      ownWarehouseRequestField.addEventListener("change", syncWarehouseRequestMode);
+      syncWarehouseRequestMode();
+    }
 
     document.addEventListener("click", function (event) {
       document.querySelectorAll(".material-display-field").forEach(function (displayField) {
